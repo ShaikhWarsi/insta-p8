@@ -134,11 +134,20 @@ async function verifyFollowStatus(igScopedId: string, pageAccessToken: string): 
   try {
     const url = `https://graph.facebook.com/v19.0/${igScopedId}?fields=is_user_follow_business&access_token=${pageAccessToken}`
     const response = await fetch(url)
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`[webhook] Follow status check failed: ${response.status} ${errorText}`)
+      // Fail OPEN - if API fails, assume they follow to avoid false "not following" prompts
+      return true
+    }
     const data = await response.json()
-    return data.is_user_follow_business === true
+    const follows = data.is_user_follow_business === true
+    console.log(`[webhook] Follow check for ${igScopedId}: ${follows ? "FOLLOWS" : "NOT FOLLOWING"}`)
+    return follows
   } catch (error) {
     console.error("[webhook] Error checking follow status:", error)
-    return false
+    // Fail OPEN - network errors shouldn't block users who actually follow
+    return true
   }
 }
 
@@ -288,45 +297,24 @@ export async function POST(request: NextRequest) {
                     const replyMode = content.reply_mode || "both"
 
                     // ===== FOLLOWER GATE FOR COMMENTS =====
-                    // For comments, we don't have a postback mechanism like DMs,
-                    // but we should still check follower status if check_follow is enabled
+                    // For comments, we send a DM with the gate (including "I Followed!" button)
+                    // The unlock verification happens when they click the button in DMs (same as DM flow)
                     if (content.check_follow === true) {
-                      const actuallyFollows = await verifyFollowStatus(senderId, user.access_token)
-            
-                      if (!actuallyFollows) {
-                                              // User doesn't follow - send follow prompt instead of content
-                                              console.log(`[webhook] 🔒 Comment follower gate: @${senderId} doesn't follow @${user.username}`)
-                                              const followPrompt = {
-                                                title: "🔒 Content Locked",
-                                                subtitle: `Follow @${user.username} to unlock this content!`,
-                                                buttons: [
-                                                  { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
-                                                ],
-                                              }
-                        if (replyMode !== "public_only") {
-                          await sendCardDM(user.access_token, { id: senderId }, followPrompt)
-                        }
-                        if (replyMode !== "dm_only") {
-                          await replyToComment(user.access_token, commentId, `Follow @${user.username} to see this content! 🔒`)
-                        }
-                      } else {
-                        // User follows - send the actual content
-                        if (replyMode !== "dm_only") {
-                          const pool =
-                            Array.isArray(content.public_replies) && content.public_replies.filter(Boolean).length > 0
-                              ? content.public_replies.filter(Boolean)
-                              : DEFAULT_PUBLIC_REPLIES
-                          await replyToComment(user.access_token, commentId, pickRandom(pool))
-                        }
-
-                        if (replyMode !== "public_only") {
-                          await sendAutomationResponse(
-                            user.access_token,
-                            { comment_id: commentId },
-                            content,
-                            { skipTyping: true },
-                          )
-                        }
+                      if (replyMode !== "public_only") {
+                        // Send gate DM with "I Followed!" button - verification happens on button click
+                        console.log(`[webhook] 🔒 Comment follower gate: sending DM to @${senderId}`)
+                        await sendCardDM(user.access_token, { id: senderId }, {
+                          title: "🔒 Content Locked",
+                          subtitle: `Follow @${user.username} to unlock this content!`,
+                          buttons: [
+                            { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                            { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
+                          ],
+                        })
+                      }
+                      if (replyMode !== "dm_only") {
+                        // Public comment reply pointing to DM
+                        await replyToComment(user.access_token, commentId, `Follow @${user.username} to see this content! 🔒 Check your DMs.`)
                       }
                     } else {
                       // No follower check required - send normally
@@ -337,7 +325,6 @@ export async function POST(request: NextRequest) {
                             : DEFAULT_PUBLIC_REPLIES
                         await replyToComment(user.access_token, commentId, pickRandom(pool))
                       }
-
                       if (replyMode !== "public_only") {
                         await sendAutomationResponse(
                           user.access_token,
@@ -402,32 +389,26 @@ export async function POST(request: NextRequest) {
           }
 
           if (match) {
-                      console.log(`[webhook] ✨ Story match: "${match.name}"`)
-                      const content = parseContent(match.response_content)
+                                console.log(`[webhook] ✨ Story match: "${match.name}"`)
+                                const content = parseContent(match.response_content)
 
-                      // ===== FOLLOWER GATE FOR STORIES =====
-                      if (content.check_follow === true) {
-                        const actuallyFollows = await verifyFollowStatus(senderId, user.access_token)
-
-                        if (!actuallyFollows) {
-                                                  // User doesn't follow - send follow prompt
-                                                  console.log(`[webhook] 🔒 Story follower gate: @${senderId} doesn't follow @${user.username}`)
-                                                  await sendCardDM(user.access_token, { id: senderId }, {
-                                                    title: "🔒 Content Locked",
-                                                    subtitle: `Please follow @${user.username} to see this!`,
-                                                    buttons: [
-                                                      { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
-                                                    ],
-                                                  })
-                        } else {
-                          // User follows - send the actual content
-                          await sendAutomationResponse(user.access_token, { id: senderId }, content)
-                        }
-                      } else {
-                        // No follower check required - send normally
-                        await sendAutomationResponse(user.access_token, { id: senderId }, content)
-                      }
-                    }
+                                // ===== FOLLOWER GATE FOR STORIES =====
+                                // Same gate+unlock flow as DMs - send gate with "I Followed!" button
+                                if (content.check_follow === true) {
+                                  console.log(`[webhook] 🔒 Story follower gate: sending DM to @${senderId}`)
+                                  await sendCardDM(user.access_token, { id: senderId }, {
+                                    title: "🔒 Content Locked",
+                                    subtitle: `Follow @${user.username} to unlock this content!`,
+                                    buttons: [
+                                      { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                                      { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
+                                    ],
+                                  })
+                                } else {
+                                  // No follower check required - send normally
+                                  await sendAutomationResponse(user.access_token, { id: senderId }, content)
+                                }
+                              }
         }
       }
 
