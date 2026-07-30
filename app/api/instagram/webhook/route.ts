@@ -127,6 +127,21 @@ function responsePreviewText(content: any): string {
   return "[automation]"
 }
 
+// ============================================================
+// Instagram API Helper: Verifies actual follow status
+// ============================================================
+async function verifyFollowStatus(igScopedId: string, pageAccessToken: string): Promise<boolean> {
+  try {
+    const url = `https://graph.facebook.com/v19.0/${igScopedId}?fields=is_user_follow_business&access_token=${pageAccessToken}`
+    const response = await fetch(url)
+    const data = await response.json()
+    return data.is_user_follow_business === true
+  } catch (error) {
+    console.error("[webhook] Error checking follow status:", error)
+    return false
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.text()
@@ -476,17 +491,40 @@ export async function POST(request: NextRequest) {
           let result
           let replyTextLog = responsePreviewText(content)
 
-          if (content.check_follow === true && !isUnlockEvent) {
-            replyTextLog = "[Locked Content Gate]"
-            result = await sendCardDM(user.access_token, { id: senderId }, {
-              title: "🔒 Content Locked",
-              subtitle: `Please follow @${user.username} to see this!`,
-              buttons: [
-                { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow Us" },
-                { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-              ],
-            })
+          if (content.check_follow === true) {
+            if (isUnlockEvent) {
+              // User clicked the button, let's verify via API
+              const actuallyFollows = await verifyFollowStatus(senderId, user.access_token)
+
+              if (actuallyFollows) {
+                // They follow, send the content!
+                result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
+              } else {
+                // They lied, send rejection
+                replyTextLog = "[Verification Failed]"
+                result = await sendCardDM(user.access_token, { id: senderId }, {
+                  title: "❌ Not Following Yet!",
+                  subtitle: `We couldn't verify your follow. Please follow @${user.username} and click the button again.`,
+                  buttons: [
+                    { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                    { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
+                  ],
+                })
+              }
+            } else {
+              // Initial gate lock
+              replyTextLog = "[Locked Content Gate]"
+              result = await sendCardDM(user.access_token, { id: senderId }, {
+                title: "🔒 Content Locked",
+                subtitle: `Please follow @${user.username} to see this!`,
+                buttons: [
+                  { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                  { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
+                ],
+              })
+            }
           } else {
+            // No follower check required for this content
             result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
           }
 
