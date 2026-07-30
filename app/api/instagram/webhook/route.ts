@@ -288,75 +288,79 @@ export async function POST(request: NextRequest) {
           }
           if (!match) continue
 
-                    const content = parseContent(match.response_content)
+                              const content = parseContent(match.response_content)
 
-                    // Skip nested replies unless user opted in
-                    if (parentId && content.include_replies !== true) continue
+                              // Skip nested replies unless user opted in
+                              if (parentId && content.include_replies !== true) continue
 
-                    console.log(`[webhook] ✅ Comment match: "${match.name}"`)
+                              console.log(`[webhook] ✅ Comment match: "${match.name}"`)
 
-                    // reply_mode: 'both' (default) | 'dm_only' | 'public_only'
-                    const replyMode = content.reply_mode || "both"
+                              // reply_mode: 'both' (default) | 'dm_only' | 'public_only'
+                              const replyMode = content.reply_mode || "both"
 
-                    // ===== FOLLOWER GATE FOR COMMENTS =====
-                    // Check follow status FIRST - only send gate to non-followers
-                    if (content.check_follow === true) {
-                      const actuallyFollows = await verifyFollowStatus(senderId, user.access_token)
+                              // Helper: pick a public reply from user's rotation list (with defaults fallback)
+                              const getPublicReply = () => {
+                                const pool =
+                                  Array.isArray(content.public_replies) && content.public_replies.filter(Boolean).length > 0
+                                    ? content.public_replies.filter(Boolean)
+                                    : DEFAULT_PUBLIC_REPLIES
+                                return pickRandom(pool)
+                              }
 
-                      if (!actuallyFollows) {
-                        // User doesn't follow - send gate DM with "I Followed!" button
-                        console.log(`[webhook] 🔒 Comment follower gate: @${senderId} doesn't follow @${user.username}`)
-                        if (replyMode !== "public_only") {
-                          await sendCardDM(user.access_token, { id: senderId }, {
-                            title: "🔒 Content Locked",
-                            subtitle: `Follow @${user.username} to unlock this content!`,
-                            buttons: [
-                              { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
-                              { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-                            ],
-                          })
-                        }
-                        if (replyMode !== "dm_only") {
-                          // Public comment reply pointing to DM
-                          await replyToComment(user.access_token, commentId, `Follow @${user.username} to see this content! 🔒 Check your DMs.`)
-                        }
-                      } else {
-                        // User follows - send the actual content
-                        console.log(`[webhook] ✅ Comment follower gate: @${senderId} follows @${user.username} - sending content`)
-                        if (replyMode !== "dm_only") {
-                          const pool =
-                            Array.isArray(content.public_replies) && content.public_replies.filter(Boolean).length > 0
-                              ? content.public_replies.filter(Boolean)
-                              : DEFAULT_PUBLIC_REPLIES
-                          await replyToComment(user.access_token, commentId, pickRandom(pool))
-                        }
-                        if (replyMode !== "public_only") {
-                          await sendAutomationResponse(
-                            user.access_token,
-                            { comment_id: commentId },
-                            content,
-                            { skipTyping: true },
-                          )
-                        }
-                      }
-                    } else {
-                      // No follower check required - send normally
-                      if (replyMode !== "dm_only") {
-                        const pool =
-                          Array.isArray(content.public_replies) && content.public_replies.filter(Boolean).length > 0
-                            ? content.public_replies.filter(Boolean)
-                            : DEFAULT_PUBLIC_REPLIES
-                        await replyToComment(user.access_token, commentId, pickRandom(pool))
-                      }
-                      if (replyMode !== "public_only") {
-                        await sendAutomationResponse(
-                          user.access_token,
-                          { comment_id: commentId },
-                          content,
-                          { skipTyping: true },
-                        )
-                      }
-                    }
+                              // ===== FOLLOWER GATE FOR COMMENTS =====
+                              // Check follow status FIRST - only send gate to non-followers
+                              if (content.check_follow === true) {
+                                const actuallyFollows = await verifyFollowStatus(senderId, user.access_token)
+
+                                if (!actuallyFollows) {
+                                  // User doesn't follow - send gate DM with "I Followed!" button
+                                  console.log(`[webhook] 🔒 Comment follower gate: @${senderId} doesn't follow @${user.username}`)
+                                  if (replyMode !== "public_only") {
+                                    await sendCardDM(user.access_token, { id: senderId }, {
+                                      title: "🔒 Content Locked",
+                                      subtitle: `Follow @${user.username} to unlock this content!`,
+                                      buttons: [
+                                        { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                                        { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
+                                      ],
+                                    })
+                                  }
+                                  if (replyMode !== "dm_only") {
+                                    // Public comment reply - use rotation list (e.g., "Check your DMs!")
+                                    const publicReply = getPublicReply()
+                                    await replyToComment(user.access_token, commentId, publicReply)
+                                  }
+                                } else {
+                                  // User follows - send the actual content
+                                  console.log(`[webhook] ✅ Comment follower gate: @${senderId} follows @${user.username} - sending content`)
+                                  if (replyMode !== "dm_only") {
+                                    const publicReply = getPublicReply()
+                                    await replyToComment(user.access_token, commentId, publicReply)
+                                  }
+                                  if (replyMode !== "public_only") {
+                                    await sendAutomationResponse(
+                                      user.access_token,
+                                      { comment_id: commentId },
+                                      content,
+                                      { skipTyping: true },
+                                    )
+                                  }
+                                }
+                              } else {
+                                // No follower check required - send normally
+                                if (replyMode !== "dm_only") {
+                                  const publicReply = getPublicReply()
+                                  await replyToComment(user.access_token, commentId, publicReply)
+                                }
+                                if (replyMode !== "public_only") {
+                                  await sendAutomationResponse(
+                                    user.access_token,
+                                    { comment_id: commentId },
+                                    content,
+                                    { skipTyping: true },
+                                  )
+                                }
+                              }
         }
       }
 
