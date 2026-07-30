@@ -297,24 +297,45 @@ export async function POST(request: NextRequest) {
                     const replyMode = content.reply_mode || "both"
 
                     // ===== FOLLOWER GATE FOR COMMENTS =====
-                    // For comments, we send a DM with the gate (including "I Followed!" button)
-                    // The unlock verification happens when they click the button in DMs (same as DM flow)
+                    // Check follow status FIRST - only send gate to non-followers
                     if (content.check_follow === true) {
-                      if (replyMode !== "public_only") {
-                        // Send gate DM with "I Followed!" button - verification happens on button click
-                        console.log(`[webhook] 🔒 Comment follower gate: sending DM to @${senderId}`)
-                        await sendCardDM(user.access_token, { id: senderId }, {
-                          title: "🔒 Content Locked",
-                          subtitle: `Follow @${user.username} to unlock this content!`,
-                          buttons: [
-                            { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
-                            { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-                          ],
-                        })
-                      }
-                      if (replyMode !== "dm_only") {
-                        // Public comment reply pointing to DM
-                        await replyToComment(user.access_token, commentId, `Follow @${user.username} to see this content! 🔒 Check your DMs.`)
+                      const actuallyFollows = await verifyFollowStatus(senderId, user.access_token)
+
+                      if (!actuallyFollows) {
+                        // User doesn't follow - send gate DM with "I Followed!" button
+                        console.log(`[webhook] 🔒 Comment follower gate: @${senderId} doesn't follow @${user.username}`)
+                        if (replyMode !== "public_only") {
+                          await sendCardDM(user.access_token, { id: senderId }, {
+                            title: "🔒 Content Locked",
+                            subtitle: `Follow @${user.username} to unlock this content!`,
+                            buttons: [
+                              { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                              { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
+                            ],
+                          })
+                        }
+                        if (replyMode !== "dm_only") {
+                          // Public comment reply pointing to DM
+                          await replyToComment(user.access_token, commentId, `Follow @${user.username} to see this content! 🔒 Check your DMs.`)
+                        }
+                      } else {
+                        // User follows - send the actual content
+                        console.log(`[webhook] ✅ Comment follower gate: @${senderId} follows @${user.username} - sending content`)
+                        if (replyMode !== "dm_only") {
+                          const pool =
+                            Array.isArray(content.public_replies) && content.public_replies.filter(Boolean).length > 0
+                              ? content.public_replies.filter(Boolean)
+                              : DEFAULT_PUBLIC_REPLIES
+                          await replyToComment(user.access_token, commentId, pickRandom(pool))
+                        }
+                        if (replyMode !== "public_only") {
+                          await sendAutomationResponse(
+                            user.access_token,
+                            { comment_id: commentId },
+                            content,
+                            { skipTyping: true },
+                          )
+                        }
                       }
                     } else {
                       // No follower check required - send normally
@@ -389,26 +410,35 @@ export async function POST(request: NextRequest) {
           }
 
           if (match) {
-                                console.log(`[webhook] ✨ Story match: "${match.name}"`)
-                                const content = parseContent(match.response_content)
+                                          console.log(`[webhook] ✨ Story match: "${match.name}"`)
+                                          const content = parseContent(match.response_content)
 
-                                // ===== FOLLOWER GATE FOR STORIES =====
-                                // Same gate+unlock flow as DMs - send gate with "I Followed!" button
-                                if (content.check_follow === true) {
-                                  console.log(`[webhook] 🔒 Story follower gate: sending DM to @${senderId}`)
-                                  await sendCardDM(user.access_token, { id: senderId }, {
-                                    title: "🔒 Content Locked",
-                                    subtitle: `Follow @${user.username} to unlock this content!`,
-                                    buttons: [
-                                      { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
-                                      { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-                                    ],
-                                  })
-                                } else {
-                                  // No follower check required - send normally
-                                  await sendAutomationResponse(user.access_token, { id: senderId }, content)
-                                }
-                              }
+                                          // ===== FOLLOWER GATE FOR STORIES =====
+                                          // Check follow status FIRST - only send gate to non-followers
+                                          if (content.check_follow === true) {
+                                            const actuallyFollows = await verifyFollowStatus(senderId, user.access_token)
+
+                                            if (!actuallyFollows) {
+                                              // User doesn't follow - send gate DM with "I Followed!" button
+                                              console.log(`[webhook] 🔒 Story follower gate: @${senderId} doesn't follow @${user.username}`)
+                                              await sendCardDM(user.access_token, { id: senderId }, {
+                                                title: "🔒 Content Locked",
+                                                subtitle: `Follow @${user.username} to unlock this content!`,
+                                                buttons: [
+                                                  { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                                                  { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
+                                                ],
+                                              })
+                                            } else {
+                                              // User follows - send the actual content
+                                              console.log(`[webhook] ✅ Story follower gate: @${senderId} follows @${user.username} - sending content`)
+                                              await sendAutomationResponse(user.access_token, { id: senderId }, content)
+                                            }
+                                          } else {
+                                            // No follower check required - send normally
+                                            await sendAutomationResponse(user.access_token, { id: senderId }, content)
+                                          }
+                                        }
         }
       }
 
@@ -525,71 +555,90 @@ export async function POST(request: NextRequest) {
 
           if (!match) continue
 
-          console.log(`[webhook] ✅ DM match: "${match.name}"`)
-          const content = parseContent(match.response_content)
+                    console.log(`[webhook] ✅ DM match: "${match.name}"`)
+                    const content = parseContent(match.response_content)
 
-          // Mark message as seen for human-like flow
-          if (content.mark_seen !== false) {
-            await sendSenderAction(user.access_token, senderId, "mark_seen")
-          }
+                    // Mark message as seen for human-like flow
+                    if (content.mark_seen !== false) {
+                      await sendSenderAction(user.access_token, senderId, "mark_seen")
+                    }
 
-          // Follow gate
-          const isUnlockEvent = triggerType === "postback" && triggerValue.startsWith("UNLOCK_CONTENT_")
-          let result
-          let replyTextLog = responsePreviewText(content)
+                    // Follow gate - check follow status FIRST, only send gate to non-followers
+                    if (content.check_follow === true) {
+                      const actuallyFollows = await verifyFollowStatus(senderId, user.access_token)
 
-          if (content.check_follow === true) {
-            if (isUnlockEvent) {
-              // User clicked the button, let's verify via API
-              const actuallyFollows = await verifyFollowStatus(senderId, user.access_token)
+                      if (!actuallyFollows) {
+                        // User doesn't follow - send gate DM with "I Followed!" button
+                        console.log(`[webhook] 🔒 DM follower gate: @${senderId} doesn't follow @${user.username}`)
+                        let result
+                        let replyTextLog = "[Locked Content Gate]"
+                        result = await sendCardDM(user.access_token, { id: senderId }, {
+                          title: "🔒 Content Locked",
+                          subtitle: `Please follow @${user.username} to see this!`,
+                          buttons: [
+                            { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                            { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
+                          ],
+                        })
 
-              if (actuallyFollows) {
-                // They follow, send the content!
-                result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
-              } else {
-                // They lied, send rejection
-                replyTextLog = "[Verification Failed]"
-                result = await sendCardDM(user.access_token, { id: senderId }, {
-                  title: "❌ Not Following Yet!",
-                  subtitle: `We couldn't verify your follow. Please follow @${user.username} and click the button again.`,
-                  buttons: [
-                    { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow Us" },
-                    { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-                  ],
-                })
-              }
-            } else {
-              // Initial gate lock
-              replyTextLog = "[Locked Content Gate]"
-              result = await sendCardDM(user.access_token, { id: senderId }, {
-                title: "🔒 Content Locked",
-                subtitle: `Please follow @${user.username} to see this!`,
-                buttons: [
-                  { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow Us" },
-                  { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-                ],
-              })
-            }
-          } else {
-            // No follower check required for this content
-            result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
-          }
+                        if (result?.ok && conv) {
+                          try {
+                            await supabase.from("messages").insert({
+                              id: `mid_reply_${Date.now()}_${Math.random()}`,
+                              conversation_id: conv.id,
+                              user_id: user.id,
+                              sender_id: user.business_account_id,
+                              sender_username: user.username,
+                              content: replyTextLog,
+                              is_from_instagram: false,
+                            })
+                          } catch (e) {
+                            console.error("[webhook] Failed to save outgoing message", e)
+                          }
+                        }
+                      } else {
+                        // User follows - send the actual content
+                        console.log(`[webhook] ✅ DM follower gate: @${senderId} follows @${user.username} - sending content`)
+                        let result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
 
-          if (result?.ok && conv) {
-            try {
-              await supabase.from("messages").insert({
-                id: `mid_reply_${Date.now()}_${Math.random()}`,
-                conversation_id: conv.id,
-                user_id: user.id,
-                sender_id: user.business_account_id,
-                sender_username: user.username,
-                content: replyTextLog,
-                is_from_instagram: false,
-              })
-            } catch (e) {
-              console.error("[webhook] Failed to save outgoing message", e)
-            }
-          }
+                        if (result?.ok && conv) {
+                          let replyTextLog = responsePreviewText(content)
+                          try {
+                            await supabase.from("messages").insert({
+                              id: `mid_reply_${Date.now()}_${Math.random()}`,
+                              conversation_id: conv.id,
+                              user_id: user.id,
+                              sender_id: user.business_account_id,
+                              sender_username: user.username,
+                              content: replyTextLog,
+                              is_from_instagram: false,
+                            })
+                          } catch (e) {
+                            console.error("[webhook] Failed to save outgoing message", e)
+                          }
+                        }
+                      }
+                    } else {
+                      // No follower check required for this content
+                      let result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
+
+                      if (result?.ok && conv) {
+                        let replyTextLog = responsePreviewText(content)
+                        try {
+                          await supabase.from("messages").insert({
+                            id: `mid_reply_${Date.now()}_${Math.random()}`,
+                            conversation_id: conv.id,
+                            user_id: user.id,
+                            sender_id: user.business_account_id,
+                            sender_username: user.username,
+                            content: replyTextLog,
+                            is_from_instagram: false,
+                          })
+                        } catch (e) {
+                          console.error("[webhook] Failed to save outgoing message", e)
+                        }
+                      }
+                    }
         }
       }
     }
