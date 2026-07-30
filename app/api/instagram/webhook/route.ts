@@ -428,10 +428,10 @@ export async function POST(request: NextRequest) {
                                               // User doesn't follow - send gate DM with "I Followed!" button
                                               console.log(`[webhook] 🔒 Story follower gate: @${senderId} doesn't follow @${user.username}`)
                                               await sendCardDM(user.access_token, { id: senderId }, {
-                                                title: "🔒 Content Locked",
+                                                title: "Before you lose me",
                                                 subtitle: `Follow @${user.username} to unlock this content!`,
                                                 buttons: [
-                                                  { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                                                  { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow" },
                                                   { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
                                                 ],
                                               })
@@ -579,10 +579,10 @@ export async function POST(request: NextRequest) {
                         let result
                         let replyTextLog = "[Locked Content Gate]"
                         result = await sendCardDM(user.access_token, { id: senderId }, {
-                          title: "🔒 Content Locked",
+                          title: "Before you lose me",
                           subtitle: `Please follow @${user.username} to see this!`,
                           buttons: [
-                            { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                            { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow" },
                             { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
                           ],
                         })
