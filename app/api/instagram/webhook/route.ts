@@ -317,10 +317,10 @@ export async function POST(request: NextRequest) {
                                   console.log(`[webhook] 🔒 Comment follower gate: @${senderId} doesn't follow @${user.username}`)
                                   if (replyMode !== "public_only") {
                                     await sendCardDM(user.access_token, { id: senderId }, {
-                                      title: "🔒 Content Locked",
+                                      title: "Before you lose me",
                                       subtitle: `Follow @${user.username} to unlock this content!`,
                                       buttons: [
-                                        { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                                        { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow" },
                                         { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
                                       ],
                                     })
