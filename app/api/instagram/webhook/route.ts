@@ -294,15 +294,15 @@ export async function POST(request: NextRequest) {
                       const actuallyFollows = await verifyFollowStatus(senderId, user.access_token)
             
                       if (!actuallyFollows) {
-                        // User doesn't follow - send follow prompt instead of content
-                        console.log(`[webhook] 🔒 Comment follower gate: @${senderId} doesn't follow @${user.username}`)
-                        const followPrompt = {
-                          title: "🔒 Content Locked",
-                          subtitle: `Follow @${user.username} to unlock this content!`,
-                          buttons: [
-                            { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow Us" },
-                          ],
-                        }
+                                              // User doesn't follow - send follow prompt instead of content
+                                              console.log(`[webhook] 🔒 Comment follower gate: @${senderId} doesn't follow @${user.username}`)
+                                              const followPrompt = {
+                                                title: "🔒 Content Locked",
+                                                subtitle: `Follow @${user.username} to unlock this content!`,
+                                                buttons: [
+                                                  { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                                                ],
+                                              }
                         if (replyMode !== "public_only") {
                           await sendCardDM(user.access_token, { id: senderId }, followPrompt)
                         }
@@ -410,15 +410,15 @@ export async function POST(request: NextRequest) {
                         const actuallyFollows = await verifyFollowStatus(senderId, user.access_token)
 
                         if (!actuallyFollows) {
-                          // User doesn't follow - send follow prompt
-                          console.log(`[webhook] 🔒 Story follower gate: @${senderId} doesn't follow @${user.username}`)
-                          await sendCardDM(user.access_token, { id: senderId }, {
-                            title: "🔒 Content Locked",
-                            subtitle: `Please follow @${user.username} to see this!`,
-                            buttons: [
-                              { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow Us" },
-                            ],
-                          })
+                                                  // User doesn't follow - send follow prompt
+                                                  console.log(`[webhook] 🔒 Story follower gate: @${senderId} doesn't follow @${user.username}`)
+                                                  await sendCardDM(user.access_token, { id: senderId }, {
+                                                    title: "🔒 Content Locked",
+                                                    subtitle: `Please follow @${user.username} to see this!`,
+                                                    buttons: [
+                                                      { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow Us" },
+                                                    ],
+                                                  })
                         } else {
                           // User follows - send the actual content
                           await sendAutomationResponse(user.access_token, { id: senderId }, content)
