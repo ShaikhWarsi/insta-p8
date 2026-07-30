@@ -129,25 +129,27 @@ function responsePreviewText(content: any): string {
 
 // ============================================================
 // Instagram API Helper: Verifies actual follow status
+// API: GET https://graph.instagram.com/v21.0/{recipientId}?fields=is_user_follow_business
+// Returns: true (follows), false (doesn't follow), null (unverifiable - treat as NOT following for safety)
 // ============================================================
 async function verifyFollowStatus(igScopedId: string, pageAccessToken: string): Promise<boolean> {
   try {
-    const url = `https://graph.facebook.com/v19.0/${igScopedId}?fields=is_user_follow_business&access_token=${pageAccessToken}`
+    const url = `https://graph.instagram.com/v21.0/${igScopedId}?fields=is_user_follow_business&access_token=${pageAccessToken}`
     const response = await fetch(url)
     if (!response.ok) {
       const errorText = await response.text()
       console.error(`[webhook] Follow status check failed: ${response.status} ${errorText}`)
-      // Fail OPEN - if API fails, assume they follow to avoid false "not following" prompts
-      return true
+      // Fail CLOSED - API error means we can't verify, treat as NOT following for safety
+      return false
     }
     const data = await response.json()
-    const follows = data.is_user_follow_business === true
-    console.log(`[webhook] Follow check for ${igScopedId}: ${follows ? "FOLLOWS" : "NOT FOLLOWING"}`)
+    const follows = data.is_user_follow_business === true  // Only true when explicitly true
+    console.log(`[webhook] Follow check for ${igScopedId}: is_user_follow_business=${data.is_user_follow_business} => ${follows ? "FOLLOWS" : "NOT FOLLOWING"}`)
     return follows
   } catch (error) {
     console.error("[webhook] Error checking follow status:", error)
-    // Fail OPEN - network errors shouldn't block users who actually follow
-    return true
+    // Fail CLOSED - network error means we can't verify, treat as NOT following for safety
+    return false
   }
 }
 
