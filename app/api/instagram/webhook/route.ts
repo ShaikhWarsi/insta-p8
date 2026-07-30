@@ -347,8 +347,8 @@ export async function POST(request: NextRequest) {
                         )
                       }
                     }
-                  }
-                }
+        }
+      }
 
       // ============================================================
       //  PART A.5: STORY AUTOMATIONS (mention / reaction / reply)
