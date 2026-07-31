@@ -759,11 +759,11 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
           </div>
         </div>
 
-        {/* ── RIGHT: iPhone Mockup ── */}
+        {/* ── RIGHT: iPhone Mockup — ALWAYS dark regardless of page theme ── */}
         {replyMode !== "public_only" && (
-          <div className="hidden lg:block sticky top-6">
+          <div className="hidden lg:block sticky top-6 dark">
             <div className="text-center mb-3">
-              <span className="font-mono-ui text-[10px] uppercase tracking-[0.25em] text-muted-foreground font-bold">Interactive Preview</span>
+              <span className="font-mono-ui text-[10px] uppercase tracking-[0.25em] text-neutral-400 font-bold">Interactive Preview</span>
             </div>
             
             {/* iPhone Outer Frame — sized to fit the 300px right rail without overflowing */}
