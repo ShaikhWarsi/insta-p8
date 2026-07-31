@@ -135,28 +135,33 @@ function responsePreviewText(content: any): string {
 // Instagram API Helper: Verifies actual follow status
 // API: GET https://graph.instagram.com/v21.0/{recipientId}?fields=is_user_follow_business
 // Returns:
-//   true  → confirmed following
-//   false → confirmed NOT following
-//   null  → unverifiable (API error / network error / unresolvable IGSID)
+//   { follows: true, error: undefined }  → confirmed following
+//   { follows: false, error: undefined } → confirmed NOT following
+//   { follows: null, error: 'auth' } → auth/permission failure (401, 403) — fail CLOSED
+//   { follows: null, error: 'transient' } → transient failure (5xx, timeout) — fail OPEN
 // ============================================================
-async function verifyFollowStatus(igScopedId: string, pageAccessToken: string): Promise<boolean | null> {
+async function verifyFollowStatus(igScopedId: string, pageAccessToken: string): Promise<{ follows: boolean | null; error?: 'auth' | 'transient' }> {
   try {
     const url = `https://graph.instagram.com/v21.0/${igScopedId}?fields=is_user_follow_business&access_token=${pageAccessToken}`
     const response = await fetch(url)
     if (!response.ok) {
       const errorText = await response.text()
       console.error(`[webhook] Follow status check failed: ${response.status} ${errorText}`)
-      // API error → unverifiable, return null (NOT false)
-      return null
+      // Distinguish auth failures (fail closed) from transient (fail open)
+      if (response.status === 401 || response.status === 403) {
+        return { follows: null, error: 'auth' }
+      }
+      // 5xx, 429, network timeout, etc. → transient, fail open
+      return { follows: null, error: 'transient' }
     }
     const data = await response.json()
     const follows = data.is_user_follow_business === true
     console.log(`[webhook] Follow check for ${igScopedId}: is_user_follow_business=${data.is_user_follow_business} => ${follows ? "FOLLOWS" : "NOT FOLLOWING"}`)
-    return follows
+    return { follows, error: undefined }
   } catch (error) {
     console.error("[webhook] Error checking follow status:", error)
-    // Network error → unverifiable, return null
-    return null
+    // Network error → transient, fail open
+    return { follows: null, error: 'transient' }
   }
 }
 
