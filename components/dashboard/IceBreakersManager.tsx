@@ -77,13 +77,32 @@ export function IceBreakersManager() {
         }
     }
 
-    if (isLoading || (fetching && !breakers.length)) {
-        return (
-            <div className="p-10 flex justify-center">
-                <Loader2 className="animate-spin text-accent-yellow-foreground dark:text-accent-yellow" />
-            </div>
-        )
-    }
+    if (isLoading) {
+            return (
+                <div className="p-10 flex justify-center">
+                    <Loader2 className="animate-spin text-accent-yellow-foreground dark:text-accent-yellow" />
+                </div>
+            )
+        }
+
+        if (!userId) {
+            return (
+                <div className="space-y-6 max-w-2xl mx-auto">
+                    <div className="text-center py-10 border border-dashed border-border rounded-xl text-muted-foreground bg-card/40">
+                        <p className="text-sm font-medium">Not connected</p>
+                        <p className="text-xs mt-1">Connect your Instagram account to manage Ice Breakers.</p>
+                    </div>
+                </div>
+            )
+        }
+
+        if (fetching && !breakers.length) {
+            return (
+                <div className="p-10 flex justify-center">
+                    <Loader2 className="animate-spin text-accent-yellow-foreground dark:text-accent-yellow" />
+                </div>
+            )
+        }
 
     return (
         <div className="space-y-6 max-w-2xl mx-auto">

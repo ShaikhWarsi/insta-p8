@@ -135,13 +135,15 @@ export default function AutomationsPage() {
                         ) : (
                             <>
                                 <button
-                                    onClick={() => setShowAiContext(!showAiContext)}
-                                    className="w-9 h-9 flex items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    title="AI settings"
-                                    aria-label="AI settings"
-                                >
-                                    <Brain className="w-4 h-4" />
-                                </button>
+                                                                    onClick={() => setShowAiContext(!showAiContext)}
+                                                                    aria-expanded={showAiContext}
+                                                                    aria-controls="ai-context-panel"
+                                                                    className="w-9 h-9 flex items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                                    title="AI settings"
+                                                                    aria-label="AI settings"
+                                                                >
+                                                                    <Brain className="w-4 h-4" />
+                                                                </button>
                                 <button
                                     onClick={handleToggleAI}
                                     disabled={aiToggling}
@@ -176,8 +178,8 @@ export default function AutomationsPage() {
                 </div>
 
                 {/* AI Context Panel */}
-                {showAiContext && (
-                    <div className="rounded-2xl border border-accent-yellow/40 bg-accent-yellow/[0.06] p-5 animate-in fade-in slide-in-from-top-2 duration-200 space-y-3">
+                                {showAiContext && (
+                                    <div id="ai-context-panel" className="rounded-2xl border border-accent-yellow/40 bg-accent-yellow/[0.06] p-5 animate-in fade-in slide-in-from-top-2 duration-200 space-y-3">
                         <div className="flex items-center gap-2">
                             <Brain className="w-4 h-4 text-accent-yellow-foreground dark:text-accent-yellow" />
                             <span className="text-sm font-semibold text-foreground">AI Personality Context</span>
@@ -201,36 +203,34 @@ export default function AutomationsPage() {
                 )}
 
                 {/* Tabs — editorial underline */}
-                <div className="flex items-center gap-6 border-b border-border overflow-x-auto" role="tablist">
-                    {tabs.map((tab) => {
-                        const isActive = activeTab === tab.key
-                        return (
-                            <button
-                                key={tab.key}
-                                role="tab"
-                                aria-selected={isActive}
-                                onClick={() => setActiveTab(tab.key)}
-                                className={`relative flex items-center gap-2 pb-3 -mb-px font-mono-ui text-xs uppercase tracking-widest transition-colors border-b-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm ${
-                                    isActive
-                                        ? 'text-foreground border-accent-yellow'
-                                        : 'text-muted-foreground border-transparent hover:text-foreground'
-                                }`}
-                            >
-                                {tab.icon}
-                                <span>{tab.label}</span>
-                                {tab.count > 0 && (
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                                        isActive
-                                            ? 'bg-accent-yellow text-accent-yellow-foreground'
-                                            : 'bg-secondary text-secondary-foreground'
-                                    }`}>
-                                        {tab.count}
-                                    </span>
-                                )}
-                            </button>
-                        )
-                    })}
-                </div>
+                                <div className="flex items-center gap-6 border-b border-border overflow-x-auto">
+                                    {tabs.map((tab) => {
+                                        const isActive = activeTab === tab.key
+                                        return (
+                                            <button
+                                                key={tab.key}
+                                                onClick={() => setActiveTab(tab.key)}
+                                                className={`relative flex items-center gap-2 pb-3 -mb-px font-mono-ui text-xs uppercase tracking-widest transition-colors border-b-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm ${
+                                                    isActive
+                                                        ? 'text-foreground border-accent-yellow'
+                                                        : 'text-muted-foreground border-transparent hover:text-foreground'
+                                                }`}
+                                            >
+                                                {tab.icon}
+                                                <span>{tab.label}</span>
+                                                {tab.count > 0 && (
+                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                                                        isActive
+                                                            ? 'bg-accent-yellow text-accent-yellow-foreground'
+                                                            : 'bg-secondary text-secondary-foreground'
+                                                    }`}>
+                                                        {tab.count}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
 
                 {/* Create Form (Collapsible) */}
                 {showCreateForm && (

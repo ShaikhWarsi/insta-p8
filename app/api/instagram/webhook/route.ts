@@ -372,20 +372,15 @@ export async function POST(request: NextRequest) {
                           )
                         }
                       } else {
-                        // null → unverifiable. Don't spam the user; send one private reply explaining
-                        // we couldn't verify right now.
-                        console.warn(`[webhook] ⚠️ Comment follower gate unverifiable for @${senderId}; skipping`)
-                        if (replyMode !== "dm_only") {
-                          await replyToComment(user.access_token, commentId, getPublicReply())
-                        }
-                        if (replyMode !== "public_only") {
-                          await sendTextDM(
-                            user.access_token,
-                            { comment_id: commentId },
-                            "⚠️ We couldn't verify your follow right now. Please try again in a moment or reach out if this keeps happening.",
-                          )
-                        }
-                      }
+                                              // null → unverifiable. Do not consume private reply with apology; skip DM so
+                                              // user can retry. Only send public reply if reply_mode allows.
+                                              console.warn(`[webhook] ⚠️ Comment follower gate unverifiable for @${senderId}; skipping DM`)
+                                              if (replyMode !== "dm_only") {
+                                                await replyToComment(user.access_token, commentId, getPublicReply())
+                                              }
+                                              // Note: we intentionally do NOT send a DM here, so the user can retry
+                                              // and we don't consume the 24h private-reply window.
+                                            }
                     } else {
                       // No follower check required — send normally
                       if (replyMode !== "dm_only") {
@@ -670,10 +665,10 @@ export async function POST(request: NextRequest) {
                             }
                           }
                         } else {
-                          // null → unverifiable. Cap the loop.
-                          const attempts = bumpUnlockAttempt(attemptKey)
-                          if (attempts >= UNLOCK_GATE_MAX_ATTEMPTS) {
-                            clearUnlockAttempts(attemptKey)
+                                                  // null → unverifiable. Cap the loop.
+                                                  const attempts = bumpUnlockAttempt(attemptKey)
+                                                  if (attempts > UNLOCK_GATE_MAX_ATTEMPTS) {
+                                                    clearUnlockAttempts(attemptKey)
                             console.warn(`[webhook] ⚠️ DM unlock gate capped after ${attempts} unverifiable attempts for @${senderId} / rule ${match.id}`)
                             const result = await sendTextDM(
                               user.access_token,
