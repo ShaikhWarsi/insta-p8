@@ -4,7 +4,8 @@ import { useState, useCallback, useEffect } from "react"
 import { useInstagramSession } from "@/hooks/use-instagram-session"
 import { AutomationList } from "@/components/dashboard/AutomationList"
 import { CreateRuleForm } from "@/components/dashboard/CreateRuleForm"
-import { MessageCircle, Send, Sparkles, Zap, Plus, Brain, Loader2 } from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { MessageCircle, Send, Sparkles, Plus, Brain, Loader2 } from "lucide-react"
 import type { Automation } from "@/lib/types"
 
 export default function AutomationsPage() {
@@ -91,8 +92,20 @@ export default function AutomationsPage() {
         setShowCreateForm(true)
     }
 
-    if (isSessionLoading) return <div className="h-screen flex items-center justify-center bg-black"><div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" /></div>
-    if (!userId) return <div className="h-screen flex items-center justify-center bg-black text-neutral-500">Please log in</div>
+    if (isSessionLoading) {
+        return (
+            <div className="h-screen flex items-center justify-center bg-background">
+                <div className="w-6 h-6 border-2 border-border border-t-primary rounded-full animate-spin" />
+            </div>
+        )
+    }
+    if (!userId) {
+        return (
+            <div className="h-screen flex items-center justify-center bg-background text-muted-foreground">
+                Please log in
+            </div>
+        )
+    }
 
     const filteredAutomations = automations.filter(a => a.trigger_source === activeTab)
     const counts = {
@@ -108,34 +121,39 @@ export default function AutomationsPage() {
     ]
 
     return (
-        <div className="min-h-screen bg-black">
+        <div className="min-h-screen bg-background text-foreground">
             <div className="max-w-5xl mx-auto px-4 md:px-8 py-8 space-y-8">
                 {/* Header */}
                 <div className="flex items-end justify-between gap-4 flex-wrap">
                     <div>
-                        <p className="font-mono-ui text-[10px] uppercase tracking-[0.3em] text-neutral-600 mb-2">Rules engine</p>
-                        <h1 className="font-serif-display text-4xl md:text-5xl text-white leading-none">Automations</h1>
+                        <p className="font-mono-ui text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-2">Rules engine</p>
+                        <h1 className="font-serif-display text-4xl md:text-5xl text-foreground leading-none">Automations</h1>
                     </div>
                     <div className="flex items-center gap-2">
+                        {/* Theme toggle (light/dark) */}
+                        <ThemeToggle className="mr-1" />
+
                         {/* AI Auto-Reply Toggle */}
                         {aiLoading ? (
-                            <Loader2 className="w-4 h-4 text-neutral-500 animate-spin" />
+                            <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
                         ) : (
                             <>
                                 <button
                                     onClick={() => setShowAiContext(!showAiContext)}
-                                    className="w-9 h-9 flex items-center justify-center rounded-full border border-white/10 text-neutral-500 hover:text-white hover:border-white/30 transition-colors"
+                                    className="w-9 h-9 flex items-center justify-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     title="AI settings"
+                                    aria-label="AI settings"
                                 >
                                     <Brain className="w-4 h-4" />
                                 </button>
                                 <button
                                     onClick={handleToggleAI}
                                     disabled={aiToggling}
-                                    className={`flex items-center gap-2 h-9 px-4 rounded-full font-mono-ui text-[11px] font-bold uppercase tracking-widest transition-colors ${
+                                    aria-pressed={aiEnabled}
+                                    className={`flex items-center gap-2 h-9 px-4 rounded-full font-mono-ui text-[11px] font-bold uppercase tracking-widest transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                                         aiEnabled
-                                            ? 'bg-[#ffe14d]/10 border border-[#ffe14d]/40 text-[#ffe14d]'
-                                            : 'border border-white/10 text-neutral-500 hover:text-white hover:border-white/30'
+                                            ? 'bg-accent-yellow text-accent-yellow-foreground border border-accent-yellow'
+                                            : 'bg-card text-muted-foreground border border-border hover:text-foreground hover:bg-accent'
                                     }`}
                                 >
                                     <Sparkles className={`w-3.5 h-3.5 ${aiToggling ? 'animate-pulse' : ''}`} />
@@ -148,10 +166,11 @@ export default function AutomationsPage() {
                                 if (showCreateForm) setEditRule(null)
                                 setShowCreateForm(!showCreateForm)
                             }}
-                            className={`flex items-center gap-2 h-9 px-5 rounded-full font-mono-ui text-[11px] font-bold uppercase tracking-widest transition-all active:scale-95 ${
+                            aria-expanded={showCreateForm}
+                            className={`flex items-center gap-2 h-9 px-5 rounded-full font-mono-ui text-[11px] font-bold uppercase tracking-widest transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                                 showCreateForm
-                                    ? 'border border-white/20 text-white hover:border-white/40'
-                                    : 'bg-[#ffe14d] text-black hover:brightness-95'
+                                    ? 'bg-card text-foreground border border-border hover:bg-accent'
+                                    : 'bg-primary text-primary-foreground hover:opacity-90'
                             }`}
                         >
                             <Plus className={`w-4 h-4 transition-transform duration-200 ${showCreateForm ? 'rotate-45' : ''}`} />
@@ -162,23 +181,23 @@ export default function AutomationsPage() {
 
                 {/* AI Context Panel */}
                 {showAiContext && (
-                    <div className="rounded-2xl border border-[#ffe14d]/20 bg-[#ffe14d]/[0.04] p-5 animate-in fade-in slide-in-from-top-2 duration-200 space-y-3">
+                    <div className="rounded-2xl border border-accent-yellow/40 bg-accent-yellow/[0.06] p-5 animate-in fade-in slide-in-from-top-2 duration-200 space-y-3">
                         <div className="flex items-center gap-2">
-                            <Brain className="w-4 h-4 text-[#ffe14d]" />
-                            <span className="text-sm font-semibold text-[#ffe14d]">AI Personality Context</span>
+                            <Brain className="w-4 h-4 text-accent-yellow-foreground dark:text-accent-yellow" />
+                            <span className="text-sm font-semibold text-foreground">AI Personality Context</span>
                         </div>
-                        <p className="text-xs text-neutral-500">Tell AI about your account — niche, products, tone, what to say/avoid. More context = more human replies.</p>
+                        <p className="text-xs text-muted-foreground">Tell AI about your account — niche, products, tone, what to say/avoid. More context = more human replies.</p>
                         <textarea
                             value={aiContext}
                             onChange={e => setAiContext(e.target.value)}
                             placeholder={`e.g. This is a fitness coaching account. I sell online training programs (₹2999/mo). My tone is motivating but chill. If someone asks about pricing, tell them to DM for a free consultation. Never promise specific results.`}
                             rows={4}
-                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-600 resize-none focus:outline-none focus:border-[#ffe14d]/50 transition-colors"
+                            className="w-full bg-background border border-input rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                         />
                         <button
                             onClick={handleSaveAiContext}
                             disabled={aiContextSaving}
-                            className="px-4 py-2 rounded-xl bg-[#ffe14d] hover:brightness-95 text-black text-xs font-bold transition-all disabled:opacity-50"
+                            className="px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:opacity-90 text-xs font-bold transition-all disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         >
                             {aiContextSaving ? 'Saving...' : aiContextSaved ? 'Saved ✓' : 'Save Context'}
                         </button>
@@ -186,33 +205,40 @@ export default function AutomationsPage() {
                 )}
 
                 {/* Tabs — editorial underline */}
-                <div className="flex items-center gap-6 border-b border-white/10">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.key}
-                            onClick={() => setActiveTab(tab.key)}
-                            className={`relative flex items-center gap-2 pb-3 -mb-px font-mono-ui text-xs uppercase tracking-widest transition-colors border-b-2 ${
-                                activeTab === tab.key
-                                    ? 'text-white border-[#ffe14d]'
-                                    : 'text-neutral-600 border-transparent hover:text-neutral-300'
-                            }`}
-                        >
-                            {tab.icon}
-                            <span>{tab.label}</span>
-                            {tab.count > 0 && (
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                                    activeTab === tab.key ? 'bg-[#ffe14d] text-black' : 'bg-white/10 text-neutral-400'
-                                }`}>
-                                    {tab.count}
-                                </span>
-                            )}
-                        </button>
-                    ))}
+                <div className="flex items-center gap-6 border-b border-border overflow-x-auto" role="tablist">
+                    {tabs.map((tab) => {
+                        const isActive = activeTab === tab.key
+                        return (
+                            <button
+                                key={tab.key}
+                                role="tab"
+                                aria-selected={isActive}
+                                onClick={() => setActiveTab(tab.key)}
+                                className={`relative flex items-center gap-2 pb-3 -mb-px font-mono-ui text-xs uppercase tracking-widest transition-colors border-b-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm ${
+                                    isActive
+                                        ? 'text-foreground border-accent-yellow'
+                                        : 'text-muted-foreground border-transparent hover:text-foreground'
+                                }`}
+                            >
+                                {tab.icon}
+                                <span>{tab.label}</span>
+                                {tab.count > 0 && (
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                                        isActive
+                                            ? 'bg-accent-yellow text-accent-yellow-foreground'
+                                            : 'bg-secondary text-secondary-foreground'
+                                    }`}>
+                                        {tab.count}
+                                    </span>
+                                )}
+                            </button>
+                        )
+                    })}
                 </div>
 
                 {/* Create Form (Collapsible) */}
                 {showCreateForm && (
-                    <div className="rounded-2xl border border-white/10 bg-[#0b0b0a] p-6 md:p-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="rounded-2xl border border-border bg-card p-6 md:p-8 animate-in fade-in slide-in-from-top-2 duration-300">
                         <CreateRuleForm
                             userId={userId}
                             triggerSource={editRule ? editRule.trigger_source : activeTab}
@@ -230,7 +256,7 @@ export default function AutomationsPage() {
                 {/* Automation List */}
                 {isLoading ? (
                     <div className="flex items-center justify-center py-16">
-                        <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                        <div className="w-6 h-6 border-2 border-border border-t-primary rounded-full animate-spin" />
                     </div>
                 ) : (
                     <AutomationList

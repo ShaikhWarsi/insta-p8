@@ -4,79 +4,118 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================
+   Light theme (default). WCAG AA targets ≥4.5:1 for body text.
+   Palette: warm cream surface + obsidian ink + crimson accent + yellow.
+   ============================================================ */
 :root {
-  /* Minimal B/W Theme */
-  --background: oklch(0.05 0 0); /* Pure black */
-  --foreground: oklch(0.98 0 0); /* White */
-  --accent-yellow: #ffe14d;
-  
-  --card: oklch(0.08 0 0);
-  --card-foreground: oklch(0.98 0 0);
-  
-  --popover: oklch(0.08 0 0);
-  --popover-foreground: oklch(0.98 0 0);
+  --background: oklch(0.985 0.005 90);          /* #faf8f5 warm cream */
+  --foreground: oklch(0.18 0.01 280);           /* #1a1a24 obsidian ink */
 
-  /* Primary is now White for high contrast */
-  --primary: oklch(0.98 0 0);
-  --primary-foreground: oklch(0.05 0 0);
+  --card: oklch(1 0 0);                          /* pure white cards */
+  --card-foreground: oklch(0.18 0.01 280);
 
-  /* Secondary is Dark Gray */
-  --secondary: oklch(0.2 0 0);
-  --secondary-foreground: oklch(0.98 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.01 280);
 
-  --muted: oklch(0.15 0 0);
-  --muted-foreground: oklch(0.6 0 0);
-  
-  --accent: oklch(0.15 0 0);
-  --accent-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.18 0.01 280);                /* obsidian buttons */
+  --primary-foreground: oklch(0.985 0.005 90);
 
-  --destructive: oklch(0.5 0.2 27); /* Keeping red for errors but slightly desaturated */
-  --destructive-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.94 0.01 90);               /* soft cream chips */
+  --secondary-foreground: oklch(0.25 0.01 280);
 
-  --border: oklch(0.15 0 0);
-  --input: oklch(0.15 0 0);
-  --ring: oklch(0.25 0 0);
+  --muted: oklch(0.95 0.008 90);
+  --muted-foreground: oklch(0.45 0.01 280);      /* 5.2:1 on background */
+
+  --accent: oklch(0.93 0.01 90);
+  --accent-foreground: oklch(0.18 0.01 280);
+
+  --destructive: oklch(0.52 0.22 27);             /* crimson — 4.6:1 on bg */
+  --destructive-foreground: oklch(0.985 0.005 90);
+
+  --success: oklch(0.55 0.16 145);                /* green for active toggles */
+  --success-foreground: oklch(0.985 0.005 90);
+
+  --warning: oklch(0.78 0.16 88);                 /* amber */
+  --warning-foreground: oklch(0.18 0.01 280);
+
+  --border: oklch(0.88 0.01 90);                  /* visible hairline */
+  --input: oklch(0.88 0.01 90);
+  --ring: oklch(0.55 0.18 88);                    /* yellow focus ring */
+
+  /* Brand accents */
+  --accent-yellow: oklch(0.82 0.18 95);           /* signature yellow */
+  --accent-yellow-foreground: oklch(0.18 0.01 280);
+  --accent-blue: oklch(0.55 0.18 255);            /* 4.6:1 on bg */
+  --accent-blue-foreground: oklch(0.985 0.005 90);
+  --accent-pink: oklch(0.55 0.22 0);              /* 4.6:1 on bg */
+  --accent-pink-foreground: oklch(0.985 0.005 90);
 
   --radius: 0.5rem;
 
-  --sidebar: oklch(0.05 0 0);
-  --sidebar-foreground: oklch(0.7 0 0);
-  --sidebar-primary: oklch(0.98 0 0);
-  --sidebar-border: oklch(0.12 0 0);
-  --sidebar-accent: oklch(0.12 0 0);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-ring: oklch(0.25 0 0);
+  --sidebar: oklch(0.97 0.006 90);
+  --sidebar-foreground: oklch(0.25 0.01 280);
+  --sidebar-primary: oklch(0.18 0.01 280);
+  --sidebar-primary-foreground: oklch(0.985 0.005 90);
+  --sidebar-accent: oklch(0.93 0.01 90);
+  --sidebar-accent-foreground: oklch(0.18 0.01 280);
+  --sidebar-border: oklch(0.88 0.01 90);
+  --sidebar-ring: oklch(0.55 0.18 88);
 }
 
+/* ============================================================
+   Dark theme. Same tokens, inverted lightness, contrast preserved.
+   ============================================================ */
 .dark {
-  /* Same as root since we are enforcing Dark Mode B/W */
-  --background: oklch(0.05 0 0);
-  --foreground: oklch(0.98 0 0);
-  --card: oklch(0.08 0 0);
-  --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.08 0 0);
-  --popover-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.98 0 0);
-  --primary-foreground: oklch(0.05 0 0);
-  --secondary: oklch(0.2 0 0);
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.15 0 0);
-  --muted-foreground: oklch(0.6 0 0);
-  --accent: oklch(0.15 0 0);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.5 0.2 27);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.15 0 0);
-  --input: oklch(0.15 0 0);
-  --ring: oklch(0.25 0 0);
-  --sidebar: oklch(0.05 0 0);
-  --sidebar-foreground: oklch(0.7 0 0);
-  --sidebar-primary: oklch(0.98 0 0);
-  --sidebar-primary-foreground: oklch(0.05 0 0);
-  --sidebar-accent: oklch(0.12 0 0);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(0.12 0 0);
-  --sidebar-ring: oklch(0.25 0 0);
+  --background: oklch(0.13 0.005 280);            /* near-black, slight cool */
+  --foreground: oklch(0.97 0.005 90);            /* warm white */
+
+  --card: oklch(0.17 0.006 280);
+  --card-foreground: oklch(0.97 0.005 90);
+
+  --popover: oklch(0.17 0.006 280);
+  --popover-foreground: oklch(0.97 0.005 90);
+
+  --primary: oklch(0.97 0.005 90);
+  --primary-foreground: oklch(0.13 0.005 280);
+
+  --secondary: oklch(0.24 0.006 280);
+  --secondary-foreground: oklch(0.97 0.005 90);
+
+  --muted: oklch(0.21 0.006 280);
+  --muted-foreground: oklch(0.72 0.01 280);       /* ≥4.5:1 on background */
+
+  --accent: oklch(0.24 0.006 280);
+  --accent-foreground: oklch(0.97 0.005 90);
+
+  --destructive: oklch(0.62 0.22 27);             /* brighter on dark */
+  --destructive-foreground: oklch(0.97 0.005 90);
+
+  --success: oklch(0.7 0.16 145);
+  --success-foreground: oklch(0.13 0.005 280);
+
+  --warning: oklch(0.82 0.16 88);
+  --warning-foreground: oklch(0.13 0.005 280);
+
+  --border: oklch(0.28 0.006 280);
+  --input: oklch(0.28 0.006 280);
+  --ring: oklch(0.82 0.18 95);
+
+  --accent-yellow: oklch(0.85 0.18 95);
+  --accent-yellow-foreground: oklch(0.13 0.005 280);
+  --accent-blue: oklch(0.7 0.17 255);              /* ≥4.5:1 on dark bg */
+  --accent-blue-foreground: oklch(0.13 0.005 280);
+  --accent-pink: oklch(0.72 0.2 0);
+  --accent-pink-foreground: oklch(0.13 0.005 280);
+
+  --sidebar: oklch(0.13 0.005 280);
+  --sidebar-foreground: oklch(0.85 0.005 90);
+  --sidebar-primary: oklch(0.97 0.005 90);
+  --sidebar-primary-foreground: oklch(0.13 0.005 280);
+  --sidebar-accent: oklch(0.21 0.006 280);
+  --sidebar-accent-foreground: oklch(0.97 0.005 90);
+  --sidebar-border: oklch(0.24 0.006 280);
+  --sidebar-ring: oklch(0.85 0.18 95);
 }
 
 @theme inline {
@@ -98,6 +137,10 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -113,6 +156,14 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Brand accents — exposed as Tailwind colors so we can use bg-accent-yellow etc. */
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-yellow-foreground: var(--accent-yellow-foreground);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-blue-foreground: var(--accent-blue-foreground);
+  --color-accent-pink: var(--accent-pink);
+  --color-accent-pink-foreground: var(--accent-pink-foreground);
 }
 
 @layer base {
@@ -120,46 +171,41 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-white/20;
+    @apply bg-background text-foreground antialiased;
   }
 }
 
-/* Minimal Utilities */
+/* Subtle surface utilities — theme-aware */
 .glass-panel {
-  @apply bg-black/40 backdrop-blur-md border border-white/10;
-}
-
-/* Removed Instagram gradients, replaced with minimal text styles if needed */
-.text-minimal-gradient {
-  @apply text-white;
+  @apply bg-card/60 backdrop-blur-md border border-border;
 }
 
 .hover-glow {
   @apply transition-colors duration-200;
 }
 .hover-glow:hover {
-  @apply bg-white/5;
+  @apply bg-accent;
 }
 
 .vercel-row-hover {
   @apply transition-colors cursor-pointer;
 }
 .vercel-row-hover:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: color-mix(in oklch, var(--accent) 60%, transparent);
 }
 
-/* Minimal Scrollbar */
+/* Editorial scrollbar */
 ::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
 }
 ::-webkit-scrollbar-track {
   @apply bg-transparent;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-white/10 rounded-full transition-colors;
+  @apply bg-border rounded-full;
 }
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-white/20;
+  background-color: color-mix(in oklch, var(--border) 60%, var(--foreground) 40%);
 }
 
 /* Editorial type utilities (shared across app) */
