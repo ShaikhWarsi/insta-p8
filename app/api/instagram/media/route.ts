@@ -40,7 +40,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: data.error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ data: data.data || [] })
+    // Normalize: pick thumbnail_url for videos, media_url for images.
+    // This gives the frontend a single `image_url` field that's never broken.
+    const normalized = (data.data || []).map((m: any) => ({
+      ...m,
+      image_url: m.thumbnail_url || m.media_url || null,
+    }))
+
+    return NextResponse.json({ data: normalized })
   } catch (error) {
     console.error("[v0] Server Error:", error)
     return NextResponse.json({ error: "Server Error" }, { status: 500 })

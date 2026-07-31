@@ -301,9 +301,9 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
       </div>
 
       {/* ── Two Column Workspace ── */}
-      <div className="grid lg:grid-cols-[1fr_320px] gap-8 items-start">
+      <div className="grid lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_340px] gap-6 xl:gap-8 items-start">
         {/* ── LEFT: Config Form ── */}
-        <div className="bg-card border border-border rounded-2xl p-6 md:p-8 space-y-6">
+        <div className="bg-card border border-border rounded-2xl p-5 md:p-8 space-y-6 min-w-0">
           {/* ===== STEP 1: TRIGGER ===== */}
           {step === 0 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
@@ -381,7 +381,7 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
                               setSelectedReel(reel)
                               setHasSelectedReelOption(true)
                             }}
-                            className={`aspect-square rounded-xl border overflow-hidden relative group text-left transition-all duration-200 bg-muted ${
+                            className={`aspect-square rounded-xl border overflow-hidden relative group text-left transition-all duration-200 bg-neutral-900 ${
                                                         isSelected
                                                           ? "border-accent-yellow ring-2 ring-accent-yellow/30"
                                                           : "border-border hover:border-foreground/40"
@@ -395,8 +395,8 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
                                                           className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                                                         />
                                                       ) : (
-                                                        <div className="w-full h-full bg-muted flex items-center justify-center">
-                                                          <Film className="w-6 h-6 text-muted-foreground" />
+                                                        <div className="w-full h-full bg-neutral-900 flex items-center justify-center">
+                                                          <Film className="w-6 h-6 text-neutral-500" />
                                                         </div>
                                                       )}
 
@@ -404,7 +404,7 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
                                                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
 
                                                       {/* Type Overlay */}
-                                                      <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/70 text-[9px] font-mono-ui text-foreground uppercase tracking-wider border border-border/40">
+                                                      <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/70 text-[9px] font-mono-ui text-white uppercase tracking-wider border border-white/10">
                                                         {reel.media_type === "STORY" ? "Story" : reel.media_type === "VIDEO" ? "Reel" : "Post"}
                                                       </span>
 
@@ -417,9 +417,9 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
                                                         </div>
                                                       )}
 
-                                                      {/* Caption snippet at bottom */}
+                                                      {/* Caption snippet at bottom — white text on dark gradient for contrast in BOTH themes */}
                                                       <div className="absolute inset-x-0 bottom-0 px-2 pt-6 pb-2 pointer-events-none">
-                                                        <p className="text-[10px] text-foreground line-clamp-1 font-sans drop-shadow-sm">{reel.caption || "Untitled"}</p>
+                                                        <p className="text-[10px] text-white line-clamp-1 font-sans drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{reel.caption || "Untitled"}</p>
                                                       </div>
                                                     </button>
                         )
@@ -766,8 +766,8 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
               <span className="font-mono-ui text-[10px] uppercase tracking-[0.25em] text-muted-foreground font-bold">Interactive Preview</span>
             </div>
             
-            {/* iPhone Outer Frame */}
-            <div className="w-[320px] h-[580px] rounded-[3rem] border-8 border-[#1f1f1e] bg-black shadow-2xl relative flex flex-col overflow-hidden ring-1 ring-white/10">
+            {/* iPhone Outer Frame — sized to fit the 300px right rail without overflowing */}
+            <div className="mx-auto w-[260px] xl:w-[300px] h-[500px] xl:h-[560px] rounded-[2.5rem] xl:rounded-[3rem] border-[7px] xl:border-8 border-[#1f1f1e] bg-black shadow-2xl relative flex flex-col overflow-hidden ring-1 ring-white/10">
               
               {/* iPhone Dynamic Island */}
               <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-5 bg-black rounded-full z-50 flex items-center justify-center">
