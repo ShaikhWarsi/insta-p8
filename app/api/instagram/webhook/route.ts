@@ -357,9 +357,9 @@ export async function POST(request: NextRequest) {
                     // alone won't open a DM with someone who has never messaged the account; private
                     // replies to a comment need comment_id.
                     if (content.check_follow === true) {
-                      const followStatus = await verifyFollowStatus(senderId, user.access_token)
+                      const followResult = await verifyFollowStatus(senderId, user.access_token)
 
-                      if (followStatus === true) {
+                      if (followResult.follows === true) {
                         console.log(`[webhook] ✅ Comment follower gate: @${senderId} follows @${user.username} — sending content`)
                         if (replyMode !== "dm_only") {
                           await replyToComment(user.access_token, commentId, getPublicReply())
@@ -372,7 +372,7 @@ export async function POST(request: NextRequest) {
                             { skipTyping: true },
                           )
                         }
-                      } else if (followStatus === false) {
+                      } else if (followResult.follows === false) {
                         console.log(`[webhook] 🔒 Comment follower gate: @${senderId} doesn't follow @${user.username}`)
                         if (replyMode !== "dm_only") {
                           await replyToComment(user.access_token, commentId, getPublicReply())
@@ -392,15 +392,44 @@ export async function POST(request: NextRequest) {
                           )
                         }
                       } else {
-                                              // null → unverifiable. Do not consume private reply with apology; skip DM so
-                                              // user can retry. Only send public reply if reply_mode allows.
-                                              console.warn(`[webhook] ⚠️ Comment follower gate unverifiable for @${senderId}; skipping DM`)
-                                              if (replyMode !== "dm_only") {
-                                                await replyToComment(user.access_token, commentId, getPublicReply())
-                                              }
-                                              // Note: we intentionally do NOT send a DM here, so the user can retry
-                                              // and we don't consume the 24h private-reply window.
-                                            }
+                        // null → unverifiable. Distinguish auth vs transient.
+                        const isAuthError = followResult.error === 'auth'
+                        if (isAuthError) {
+                          // Auth/permission failure — fail CLOSED: send gate card
+                          console.warn(`[webhook] ⚠️ Comment follower gate auth failure for @${senderId}; sending gate`)
+                          if (replyMode !== "dm_only") {
+                            await replyToComment(user.access_token, commentId, getPublicReply())
+                          }
+                          if (replyMode !== "public_only") {
+                            await sendCardDM(
+                              user.access_token,
+                              { comment_id: commentId },
+                              {
+                                title: "Before you lose me",
+                                subtitle: `Follow @${user.username} to unlock this content!`,
+                                buttons: [
+                                  { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow" },
+                                  { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
+                                ],
+                              },
+                            )
+                          }
+                        } else {
+                          // Transient failure — fail OPEN: deliver content (with public reply if allowed)
+                          console.warn(`[webhook] ⚠️ Comment follower gate transient failure for @${senderId}; failing open`)
+                          if (replyMode !== "dm_only") {
+                            await replyToComment(user.access_token, commentId, getPublicReply())
+                          }
+                          if (replyMode !== "public_only") {
+                            await sendAutomationResponse(
+                              user.access_token,
+                              { comment_id: commentId },
+                              content,
+                              { skipTyping: true },
+                            )
+                          }
+                        }
+                      }
                     } else {
                       // No follower check required — send normally
                       if (replyMode !== "dm_only") {
