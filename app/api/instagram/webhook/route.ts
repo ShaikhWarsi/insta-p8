@@ -167,19 +167,34 @@ async function verifyFollowStatus(igScopedId: string, pageAccessToken: string): 
 
 // In-memory tracker for "how many gate cards have we sent for this sender × rule" so the
 // unlock loop can't go on forever. Resets when verification finally succeeds or fails outright.
-const unlockGateAttempts = new Map<string, number>()
+// In-memory tracker for "how many gate cards have we sent for this sender x rule" so the
+// unlock loop cant go on forever. Resets when verification finally succeeds or fails outright.
+// Entries expire after 24h to prevent unbounded growth in serverless (each Vercel instance
+// has its own Map; TTL ensures stale entries dont accumulate).
+const UNLOCK_TTL_MS = 24 * 60 * 60 * 1000
+interface UnlockAttempt { count: number; updatedAt: number }
+const unlockGateAttempts = new Map<string, UnlockAttempt>()
+
+function cleanupStaleAttempts(): void {
+  const now = Date.now()
+  for (const [key, val] of unlockGateAttempts) {
+    if (now - val.updatedAt > UNLOCK_TTL_MS) unlockGateAttempts.delete(key)
+  }
+}
 
 function unlockKey(senderId: string, ruleId: string): string {
   return `${senderId}::${ruleId}`
 }
 
 function bumpUnlockAttempt(key: string): number {
-  const next = (unlockGateAttempts.get(key) || 0) + 1
-  unlockGateAttempts.set(key, next)
+  cleanupStaleAttempts()
+  const next = (unlockGateAttempts.get(key)?.count || 0) + 1
+  unlockGateAttempts.set(key, { count: next, updatedAt: Date.now() })
   return next
 }
 
 function clearUnlockAttempts(key: string): void {
+  cleanupStaleAttempts()
   unlockGateAttempts.delete(key)
 }
 
