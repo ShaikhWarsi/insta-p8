@@ -352,7 +352,7 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
                       <span className="text-xs text-muted-foreground font-mono-ui">Fetching Instagram feed...</span>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[420px] overflow-y-auto pr-1 pb-1">
+                    <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 sm:gap-3 max-h-[55vh] sm:max-h-[420px] overflow-y-auto pr-1 pb-1">
                       {/* Option: Global Post Rule */}
                       <button
                         type="button"
@@ -360,16 +360,16 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
                           setSelectedReel(null)
                           setHasSelectedReelOption(true)
                         }}
-                        className={`aspect-square rounded-xl border flex flex-col items-center justify-center p-4 text-center transition-all duration-200 ${
-                          hasSelectedReelOption && selectedReel === null
-                            ? "border-[#ffe14d] bg-accent-yellow/[0.06] text-[#ffe14d]"
-                            : "border-border text-muted-foreground hover:border-border hover:text-foreground bg-white/[0.01]"
-                        }`}
-                      >
-                        <Globe className="w-8 h-8 mb-2 opacity-80" />
-                        <span className="text-xs font-bold">All Posts & Reels</span>
-                        <span className="text-[9px] text-muted-foreground mt-1">Global Trigger</span>
-                      </button>
+                        className={`aspect-square rounded-xl border flex flex-col items-center justify-center p-2 sm:p-4 text-center transition-all duration-200 ${
+                                                  hasSelectedReelOption && selectedReel === null
+                                                    ? "border-accent-yellow ring-2 ring-accent-yellow/30 bg-accent-yellow/10"
+                                                    : "border-border bg-card hover:border-foreground/30 hover:bg-accent"
+                                                }`}
+                                              >
+                                                <Globe className="w-6 h-6 mb-2 text-accent-blue" />
+                                                <span className="text-xs font-bold text-foreground">All Posts & Reels</span>
+                                                <span className="text-[10px] text-muted-foreground mt-1 font-mono-ui">Global Trigger</span>
+                                              </button>
 
                       {reels.map((reel) => {
                         const isSelected = hasSelectedReelOption && selectedReel?.id === reel.id
