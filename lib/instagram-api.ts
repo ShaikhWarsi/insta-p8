@@ -64,6 +64,28 @@ export function buildCardAttachment(card: IGCard) {
   }
 }
 
+/**
+ * Build the follower-gate card shown to non-followers. Centralized so the
+ * comment, story, and DM branches all share the same copy and the same
+ * `as const` button types — preserving the `"web_url"` / `"postback"`
+ * literal types that `IGButton` requires.
+ */
+export function buildFollowGateCard(params: {
+  username: string
+  ruleId: string
+  title?: string
+  subtitle?: string
+}): IGCard {
+  return {
+    title: params.title ?? "Before you lose me",
+    subtitle: params.subtitle ?? `Follow @${params.username} to unlock this content!`,
+    buttons: [
+      { type: "web_url", url: `https://instagram.com/${params.username}`, title: "Follow" },
+      { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${params.ruleId}` },
+    ],
+  }
+}
+
 export async function sendTextDM(
   token: string,
   recipient: { id?: string; comment_id?: string },

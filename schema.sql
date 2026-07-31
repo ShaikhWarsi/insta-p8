@@ -1,5 +1,12 @@
--- Supabase Database Schema Dump for Insta-P8
--- This script contains all 11 tables, constraints, indexes, and storage bucket settings.
+-- Supabase Database Schema — Insta-P8
+-- This file is the canonical source of truth for the database structure.
+-- Run it directly in the Supabase SQL editor, or let the migration runner
+-- (`lib/supabase-migrate.ts`) sync it automatically on deploy.
+--
+-- Design rules:
+--   * Every CREATE uses IF NOT EXISTS — safe to re-run.
+--   * No DROP TABLE statements anywhere. Existing data is preserved.
+--   * Additive changes only. New columns get DEFAULT values.
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -175,6 +182,19 @@ CREATE TABLE IF NOT EXISTS public.dm_queue (
 );
 
 -- ==========================================
+-- 12. Table: public.unlock_attempts
+-- Purpose: Persistent counter so the 3-attempt gate cap works across
+-- serverless Vercel instances. Each Vercel invocation has its own JS
+-- memory, so without this table the in-Map would reset between requests
+-- and the user could spam the gate card indefinitely.
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.unlock_attempts (
+  key TEXT PRIMARY KEY,
+  count INTEGER NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==========================================
 -- Indexes for performance
 -- ==========================================
 CREATE INDEX IF NOT EXISTS idx_automations_trigger_source ON public.automations(trigger_source);
@@ -182,19 +202,14 @@ CREATE INDEX IF NOT EXISTS idx_automations_user_source ON public.automations(use
 CREATE INDEX IF NOT EXISTS idx_content_pool_user_sequence ON public.content_pool(user_id, sequence_index);
 CREATE INDEX IF NOT EXISTS idx_scheduler_next_run ON public.scheduler_config(next_run_at);
 CREATE INDEX IF NOT EXISTS idx_reels_posts_user_status ON public.reels_posts(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_unlock_attempts_updated ON public.unlock_attempts(updated_at);
 
 -- ==========================================
 -- Storage Bucket: reels
 -- ==========================================
--- Create bucket if it doesn't exist (Requires storage schema)
-INSERT INTO storage.buckets (id, name, public) 
+INSERT INTO storage.buckets (id, name, public)
 VALUES ('reels', 'reels', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
-
--- NOTE: RLS is enabled by default on storage.objects in Supabase.
--- Running ALTER TABLE storage.objects causes permission errors (must be owner of table objects) 
--- on newer Supabase instances. Therefore, we do not run it here.
--- ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 -- Drop storage policies if they exist to prevent duplicates
 DROP POLICY IF EXISTS "Public Uploads" ON storage.objects;
@@ -202,36 +217,36 @@ DROP POLICY IF EXISTS "Public Viewing" ON storage.objects;
 DROP POLICY IF EXISTS "Public Deletion" ON storage.objects;
 
 -- Create policies for storage
-CREATE POLICY "Public Uploads" 
-ON storage.objects FOR INSERT 
-TO public 
+CREATE POLICY "Public Uploads"
+ON storage.objects FOR INSERT
+TO public
 WITH CHECK (bucket_id = 'reels');
 
-CREATE POLICY "Public Viewing" 
-ON storage.objects FOR SELECT 
-TO public 
+CREATE POLICY "Public Viewing"
+ON storage.objects FOR SELECT
+TO public
 USING (bucket_id = 'reels');
 
-CREATE POLICY "Public Deletion" 
-ON storage.objects FOR DELETE 
-TO public 
+CREATE POLICY "Public Deletion"
+ON storage.objects FOR DELETE
+TO public
 USING (bucket_id = 'reels');
 
 -- =========================================================================
 -- SECURITY NOTE: Row Level Security (RLS) for public schema tables
--- Enable RLS to protect tables from unauthorized public access.
--- If you want to restrict public access to the client-facing APIs,
--- uncomment the commands below and create suitable RLS policies.
--- 
--- ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.webhook_events ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.automations ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.media_cache ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.ice_breakers ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.content_pool ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.scheduler_config ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.reels_posts ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.dm_queue ENABLE ROW LEVEL SECURITY;
+-- Enable RLS to protect tables from unauthorized public access via the
+-- Supabase REST API. The service-role key in server-side API routes
+-- bypasses RLS, so this only restricts the public anon role.
 -- =========================================================================
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhook_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.automations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.media_cache ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ice_breakers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.content_pool ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scheduler_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reels_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.dm_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.unlock_attempts ENABLE ROW LEVEL SECURITY;

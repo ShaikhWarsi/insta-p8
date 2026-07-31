@@ -12,7 +12,9 @@ import {
   fetchProfile,
   verifyIdOwnership,
   sleep,
+  buildFollowGateCard,
 } from "@/lib/instagram-api"
+import { bumpUnlockAttempt, clearUnlockAttempts, unlockKey } from "@/lib/unlock-tracking"
 
 const WEBHOOK_VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN
 // Meta signs every webhook POST with HMAC-SHA256 of the raw body. Depending on app setup the
@@ -143,7 +145,8 @@ function responsePreviewText(content: any): string {
 async function verifyFollowStatus(igScopedId: string, pageAccessToken: string): Promise<{ follows: boolean | null; error?: 'auth' | 'transient' }> {
   try {
     const url = `https://graph.instagram.com/v21.0/${igScopedId}?fields=is_user_follow_business&access_token=${pageAccessToken}`
-    const response = await fetch(url)
+    // 5s timeout -- Graph API is fast, anything longer means trouble
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000) })
     if (!response.ok) {
       const errorText = await response.text()
       console.error(`[webhook] Follow status check failed: ${response.status} ${errorText}`)
@@ -158,45 +161,19 @@ async function verifyFollowStatus(igScopedId: string, pageAccessToken: string): 
     const follows = data.is_user_follow_business === true
     console.log(`[webhook] Follow check for ${igScopedId}: is_user_follow_business=${data.is_user_follow_business} => ${follows ? "FOLLOWS" : "NOT FOLLOWING"}`)
     return { follows, error: undefined }
-  } catch (error) {
+  } catch (error: any) {
     console.error("[webhook] Error checking follow status:", error)
+    // AbortSignal.timeout throws AbortError/TimeoutError -- both are transient
+    if (error?.name === "AbortError" || error?.name === "TimeoutError") {
+      return { follows: null, error: 'transient' }
+    }
     // Network error → transient, fail open
     return { follows: null, error: 'transient' }
   }
 }
 
-// In-memory tracker for "how many gate cards have we sent for this sender × rule" so the
-// unlock loop can't go on forever. Resets when verification finally succeeds or fails outright.
-// In-memory tracker for "how many gate cards have we sent for this sender x rule" so the
-// unlock loop cant go on forever. Resets when verification finally succeeds or fails outright.
-// Entries expire after 24h to prevent unbounded growth in serverless (each Vercel instance
-// has its own Map; TTL ensures stale entries dont accumulate).
-const UNLOCK_TTL_MS = 24 * 60 * 60 * 1000
-interface UnlockAttempt { count: number; updatedAt: number }
-const unlockGateAttempts = new Map<string, UnlockAttempt>()
-
-function cleanupStaleAttempts(): void {
-  const now = Date.now()
-  for (const [key, val] of unlockGateAttempts) {
-    if (now - val.updatedAt > UNLOCK_TTL_MS) unlockGateAttempts.delete(key)
-  }
-}
-
-function unlockKey(senderId: string, ruleId: string): string {
-  return `${senderId}::${ruleId}`
-}
-
-function bumpUnlockAttempt(key: string): number {
-  cleanupStaleAttempts()
-  const next = (unlockGateAttempts.get(key)?.count || 0) + 1
-  unlockGateAttempts.set(key, { count: next, updatedAt: Date.now() })
-  return next
-}
-
-function clearUnlockAttempts(key: string): void {
-  cleanupStaleAttempts()
-  unlockGateAttempts.delete(key)
-}
+// Unlock-attempt counter is in lib/unlock-tracking.ts -- uses Supabase
+// unlock_attempts table so the 3-attempt cap works across Vercel instances.
 
 export async function POST(request: NextRequest) {
   try {
@@ -220,6 +197,8 @@ export async function POST(request: NextRequest) {
     }
     const body = JSON.parse(rawBody)
     if (!body.entry) return NextResponse.json({ ok: true })
+    // Ensure schema is up-to-date on every cold start (idempotent, no-op if all tables exist)
+    ensureSchema().catch((e) => console.warn("[webhook] ensureSchema failed:", e?.message))
     const supabase = await getSupabaseServerClient()
 
     for (const entry of body.entry) {
@@ -381,14 +360,7 @@ export async function POST(request: NextRequest) {
                           await sendCardDM(
                             user.access_token,
                             { comment_id: commentId },
-                            {
-                              title: "Before you lose me",
-                              subtitle: `Follow @${user.username} to unlock this content!`,
-                              buttons: [
-                                { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow" },
-                                { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-                              ],
-                            },
+                            buildFollowGateCard({ username: user.username, ruleId: match.id }),
                           )
                         }
                       } else {
@@ -404,14 +376,7 @@ export async function POST(request: NextRequest) {
                             await sendCardDM(
                               user.access_token,
                               { comment_id: commentId },
-                              {
-                                title: "Before you lose me",
-                                subtitle: `Follow @${user.username} to unlock this content!`,
-                                buttons: [
-                                  { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow" },
-                                  { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-                                ],
-                              },
+                              buildFollowGateCard({ username: user.username, ruleId: match.id }),
                             )
                           }
                         } else {
@@ -510,28 +475,14 @@ export async function POST(request: NextRequest) {
                                               await sendAutomationResponse(user.access_token, { id: senderId }, content)
                                             } else if (followResult.follows === false) {
                                               console.log(`[webhook] 🔒 Story follower gate: @${senderId} doesn't follow @${user.username}`)
-                                              await sendCardDM(user.access_token, { id: senderId }, {
-                                                title: "Before you lose me",
-                                                subtitle: `Follow @${user.username} to unlock this content!`,
-                                                buttons: [
-                                                  { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow" },
-                                                  { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-                                                ],
-                                              })
+                                              await sendCardDM(user.access_token, { id: senderId }, buildFollowGateCard({ username: user.username, ruleId: match.id }))
                                             } else {
                                               // null → unverifiable. Distinguish auth vs transient.
                                               const isAuthError = followResult.error === 'auth'
                                               if (isAuthError) {
                                                 // Auth failure — fail CLOSED: send gate
                                                 console.warn(`[webhook] ⚠️ Story follower gate auth failure for @${senderId}; sending gate`)
-                                                await sendCardDM(user.access_token, { id: senderId }, {
-                                                  title: "Before you lose me",
-                                                  subtitle: `Follow @${user.username} to unlock this content!`,
-                                                  buttons: [
-                                                    { type: "web_url" as const, url: `https://instagram.com/${user.username}`, title: "Follow" },
-                                                    { type: "postback" as const, title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-                                                  ],
-                                                })
+                                                await sendCardDM(user.access_token, { id: senderId }, buildFollowGateCard({ username: user.username, ruleId: match.id }))
                                               } else {
                                                 // Transient failure — fail OPEN: deliver content
                                                 console.warn(`[webhook] ⚠️ Story follower gate transient failure for @${senderId}; failing open`)
@@ -680,7 +631,7 @@ export async function POST(request: NextRequest) {
                         const followResult = await verifyFollowStatus(senderId, user.access_token)
 
                         if (followResult.follows === true) {
-                          clearUnlockAttempts(attemptKey)
+                          await clearUnlockAttempts(attemptKey)
                           console.log(`[webhook] ✅ DM unlock verified for @${senderId}`)
                           const result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
                           if (result?.ok && conv) {
@@ -699,16 +650,9 @@ export async function POST(request: NextRequest) {
                             }
                           }
                         } else if (followResult.follows === false) {
-                          clearUnlockAttempts(attemptKey)
+                          await clearUnlockAttempts(attemptKey)
                           console.log(`[webhook] ❌ DM unlock rejected: @${senderId} still doesn't follow`)
-                          const result = await sendCardDM(user.access_token, { id: senderId }, {
-                            title: "❌ Not Following Yet!",
-                            subtitle: `We couldn't verify your follow. Please follow @${user.username} and click the button again.`,
-                            buttons: [
-                              { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow" },
-                              { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-                            ],
-                          })
+                          const result = await sendCardDM(user.access_token, { id: senderId }, buildFollowGateCard({ username: user.username, ruleId: match.id, title: "❌ Not Following Yet!", subtitle: `We couldn't verify your follow. Please follow @${user.username} and click the button again.` }))
                           if (result?.ok && conv) {
                             try {
                               await supabase.from("messages").insert({
@@ -726,9 +670,9 @@ export async function POST(request: NextRequest) {
                           }
                         } else {
                                                   // null → unverifiable. Cap the loop.
-                                                  const attempts = bumpUnlockAttempt(attemptKey)
+                                                  const attempts = await bumpUnlockAttempt(attemptKey)
                                                   if (attempts > UNLOCK_GATE_MAX_ATTEMPTS) {
-                                                    clearUnlockAttempts(attemptKey)
+                                                    await clearUnlockAttempts(attemptKey)
                                                     console.warn(`[webhook] ⚠️ DM unlock gate capped after ${attempts} unverifiable attempts for @${senderId} / rule ${match.id}`)
                                                     const result = await sendTextDM(
                                                       user.access_token,
@@ -752,14 +696,7 @@ export async function POST(request: NextRequest) {
                                                     }
                                                   } else {
                                                     console.warn(`[webhook] ⚠️ DM unlock unverifiable (attempt ${attempts}/${UNLOCK_GATE_MAX_ATTEMPTS}) for @${senderId}`)
-                                                    const result = await sendCardDM(user.access_token, { id: senderId }, {
-                                                      title: "Before you lose me",
-                                                      subtitle: `Please follow @${user.username} to see this!`,
-                                                      buttons: [
-                                                        { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow" },
-                                                        { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-                                                      ],
-                                                    })
+                                                    const result = await sendCardDM(user.access_token, { id: senderId }, buildFollowGateCard({ username: user.username, ruleId: match.id, subtitle: `Please follow @${user.username} to see this!` }))
                                                     if (result?.ok && conv) {
                                                       try {
                                                         await supabase.from("messages").insert({
@@ -782,7 +719,7 @@ export async function POST(request: NextRequest) {
                                                 const followResult = await verifyFollowStatus(senderId, user.access_token)
 
                                                 if (followResult.follows === true) {
-                          clearUnlockAttempts(attemptKey)
+                          await clearUnlockAttempts(attemptKey)
                           console.log(`[webhook] ✅ DM follower gate: @${senderId} follows @${user.username} — sending content`)
                           const result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
                           if (result?.ok && conv) {
@@ -801,16 +738,9 @@ export async function POST(request: NextRequest) {
                             }
                           }
                         } else if (followResult.follows === false) {
-                          clearUnlockAttempts(attemptKey)
+                          await clearUnlockAttempts(attemptKey)
                           console.log(`[webhook] 🔒 DM follower gate: @${senderId} doesn't follow @${user.username}`)
-                          const result = await sendCardDM(user.access_token, { id: senderId }, {
-                            title: "Before you lose me",
-                            subtitle: `Please follow @${user.username} to see this!`,
-                            buttons: [
-                              { type: "web_url", url: `https://instagram.com/${user.username}`, title: "Follow" },
-                              { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${match.id}` },
-                            ],
-                          })
+                          const result = await sendCardDM(user.access_token, { id: senderId }, buildFollowGateCard({ username: user.username, ruleId: match.id, subtitle: `Please follow @${user.username} to see this!` }))
                           if (result?.ok && conv) {
                             try {
                               await supabase.from("messages").insert({
