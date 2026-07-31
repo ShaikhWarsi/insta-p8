@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from "react"
 import { useInstagramSession } from "@/hooks/use-instagram-session"
 import { AutomationList } from "@/components/dashboard/AutomationList"
 import { CreateRuleForm } from "@/components/dashboard/CreateRuleForm"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { MessageCircle, Send, Sparkles, Plus, Brain, Loader2 } from "lucide-react"
 import type { Automation } from "@/lib/types"
 
@@ -129,11 +128,8 @@ export default function AutomationsPage() {
                         <p className="font-mono-ui text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-2">Rules engine</p>
                         <h1 className="font-serif-display text-4xl md:text-5xl text-foreground leading-none">Automations</h1>
                     </div>
+                    {/* Theme toggle lives in the sidebar — keep this header clean */}
                     <div className="flex items-center gap-2">
-                        {/* Theme toggle (light/dark) */}
-                        <ThemeToggle className="mr-1" />
-
-                        {/* AI Auto-Reply Toggle */}
                         {aiLoading ? (
                             <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
                         ) : (

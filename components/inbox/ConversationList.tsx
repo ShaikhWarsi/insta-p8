@@ -38,19 +38,19 @@ export function ConversationList({ userId, selectedId, onSelect }: ConversationL
     if (loading) {
         return (
             <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-6 h-6 text-white/20 animate-spin" />
+                <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
             </div>
         )
     }
 
     return (
-        <div className="flex flex-col h-full border-r border-white/5 bg-black/20 w-full md:w-[350px]">
-            <div className="p-4 border-b border-white/5">
-                <h2 className="text-lg font-bold text-white mb-4">Inbox</h2>
+        <div className="flex flex-col h-full border-r border-border bg-card w-full md:w-[350px]">
+            <div className="p-4 border-b border-border">
+                <h2 className="text-lg font-bold text-foreground mb-4">Inbox</h2>
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <input
-                        className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-[#ffe14d]/50 placeholder:text-muted-foreground/50 transition-all"
+                        className="w-full bg-background border border-input rounded-xl pl-10 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
                         placeholder="Search messages..."
                     />
                 </div>
@@ -69,18 +69,18 @@ export function ConversationList({ userId, selectedId, onSelect }: ConversationL
                             className={cn(
                                 "p-3 rounded-lg flex items-center gap-3 cursor-pointer transition-colors border border-transparent",
                                 selectedId === conv.id
-                                    ? "bg-[#ffe14d]/[0.06] border-[#ffe14d]/20"
-                                    : "hover:bg-white/5 hover:border-white/5"
+                                    ? "bg-accent-yellow/15 border-accent-yellow/40"
+                                    : "hover:bg-accent hover:border-border"
                             )}
                         >
-                            <div className="w-12 h-12 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center shrink-0">
-                                <UserCircle className="w-6 h-6 text-white/50" />
+                            <div className="w-12 h-12 rounded-full bg-muted border border-border flex items-center justify-center shrink-0">
+                                <UserCircle className="w-6 h-6 text-muted-foreground" />
                             </div>
                             <div className="flex-1 min-w-0 text-left">
                                 <div className="flex items-center justify-between mb-0.5">
                                     <span className={cn(
                                         "font-semibold text-sm truncate",
-                                        selectedId === conv.id ? "text-[#ffe14d]" : "text-white"
+                                        selectedId === conv.id ? "text-accent-yellow-foreground dark:text-accent-yellow" : "text-foreground"
                                     )}>
                                         {conv.recipient_username}
                                     </span>
