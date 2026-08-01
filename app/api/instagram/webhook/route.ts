@@ -3,6 +3,7 @@
 import crypto from "crypto"
 import { type NextRequest, NextResponse } from "next/server"
 import { getSupabaseServerClient } from "@/lib/supabase-server"
+import { ensureSchema } from "@/lib/supabase-migrate"
 import {
   sendTextDM,
   sendCardDM,
@@ -757,24 +758,46 @@ export async function POST(request: NextRequest) {
                             }
                           }
                         } else {
-                          // null → unverifiable. For initial DMs (not unlock events), fail-open so
-                          // legitimate senders still get a reply, but log loudly. The unlock path
-                          // still strictly requires confirmation.
-                          console.warn(`[webhook] ⚠️ DM follower gate unverifiable for @${senderId}; failing open on initial trigger`)
-                          const result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
-                          if (result?.ok && conv) {
-                            try {
-                              await supabase.from("messages").insert({
-                                id: `mid_reply_${Date.now()}_${Math.random()}`,
-                                conversation_id: conv.id,
-                                user_id: user.id,
-                                sender_id: user.business_account_id,
-                                sender_username: user.username,
-                                content: responsePreviewText(content),
-                                is_from_instagram: false,
-                              })
-                            } catch (e) {
-                              console.error("[webhook] Failed to save outgoing message", e)
+                          // null → unverifiable. Distinguish auth vs transient. Auth fail-CLOSED:
+                          // send gate, don't deliver content (matches comment/story branches).
+                          // Only transient 5xx/timeouts fail OPEN and deliver content.
+                          const isAuthError = followResult.error === 'auth'
+                          if (isAuthError) {
+                            console.warn(`[webhook] ⚠️ DM follower gate auth failure for @${senderId}; sending gate`)
+                            const result = await sendCardDM(user.access_token, { id: senderId }, buildFollowGateCard({ username: user.username, ruleId: match.id, title: "❌ Verification Failed", subtitle: `We can't verify your follow status. Please follow @${user.username} and try again.` }))
+                            if (result?.ok && conv) {
+                              try {
+                                await supabase.from("messages").insert({
+                                  id: `mid_reply_${Date.now()}_${Math.random()}`,
+                                  conversation_id: conv.id,
+                                  user_id: user.id,
+                                  sender_id: user.business_account_id,
+                                  sender_username: user.username,
+                                  content: "[Auth Failure — Gate Sent]",
+                                  is_from_instagram: false,
+                                })
+                              } catch (e) {
+                                console.error("[webhook] Failed to save outgoing message", e)
+                              }
+                            }
+                          } else {
+                            // Transient failure — fail OPEN on initial trigger
+                            console.warn(`[webhook] ⚠️ DM follower gate transient failure for @${senderId}; failing open on initial trigger`)
+                            const result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
+                            if (result?.ok && conv) {
+                              try {
+                                await supabase.from("messages").insert({
+                                  id: `mid_reply_${Date.now()}_${Math.random()}`,
+                                  conversation_id: conv.id,
+                                  user_id: user.id,
+                                  sender_id: user.business_account_id,
+                                  sender_username: user.username,
+                                  content: responsePreviewText(content),
+                                  is_from_instagram: false,
+                                })
+                              } catch (e) {
+                                console.error("[webhook] Failed to save outgoing message", e)
+                              }
                             }
                           }
                         }

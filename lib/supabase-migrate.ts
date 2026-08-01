@@ -6,14 +6,25 @@ let _migrated = false
 let _running: Promise<void> | null = null
 
 /**
- * Run schema.sql against the live database. Idempotent.
+ * Run schema.sql's safe DDL against the live database. Idempotent.
  *
- * Strategy: every CREATE in schema.sql uses IF NOT EXISTS, so simply
- * executing the file as SQL is safe — it never drops data, never overwrites
- * columns, never deletes rows. It only adds what's missing.
+ * Auto-migration scope (per project decision):
+ *   - CREATE TABLE IF NOT EXISTS
+ *   - CREATE INDEX IF NOT EXISTS
+ *   - CREATE EXTENSION IF NOT EXISTS
  *
- * Tables that should exist (drives the "is the schema in sync?" check).
- * Any new table added to schema.sql must be added here.
+ * NOT auto-migrated (apply once via the SQL editor or pgcron):
+ *   - CREATE POLICY          (storage RLS)
+ *   - ALTER TABLE ... ENABLE ROW LEVEL SECURITY
+ *
+ * Reason: the Supabase JS client exposes no raw SQL endpoint. We rely on
+ * schema.sql itself being idempotent (`IF NOT EXISTS`) so re-running safe
+ * DDL on every cold start is harmless. Policies and RLS need to be applied
+ * once in the Supabase SQL editor -- they reference the anon role, which
+ * the migration runner doesn't switch into.
+ *
+ * Atomic RPC alternative: pages could opt into a `public.missing_tables()`
+ * RPC. Out of scope here; the existing pattern is good enough.
  */
 const EXPECTED_TABLES = [
   "users",
@@ -31,76 +42,54 @@ const EXPECTED_TABLES = [
 ]
 
 /**
- * Quick health check: does every expected table exist?
- * Returns the missing ones. Empty array = schema is in sync.
- */
-export async function getMissingTables(): Promise<string[]> {
-  const supabase = getSupabaseAdmin()
-  const { data, error } = await supabase
-    .from("information_schema.tables")
-    .select("table_name")
-    .eq("table_schema", "public")
-
-  if (error || !data) {
-    console.error("[migrate] Could not list tables:", error?.message)
-    return EXPECTED_TABLES // assume all missing if we can't check
-  }
-
-  const existing = new Set(data.map((r: any) => r.table_name as string))
-  return EXPECTED_TABLES.filter((t) => !existing.has(t))
-}
-
-/**
- * Apply schema.sql. Safe to call multiple times — every statement is
- * idempotent (CREATE TABLE IF NOT EXISTS, CREATE INDEX IF NOT EXISTS,
- * DROP POLICY IF EXISTS, INSERT ... ON CONFLICT).
+ * Apply schema.sql. Safe to call multiple times.
  *
  * Runs only once per cold start per Vercel instance.
+ *
+ * The information_schema precheck was removed: PostgREST does not expose
+ * information_schema tables by default, so the previous implementation
+ * always assumed all tables were missing and ran the entire DDL set. The
+ * `IF NOT EXISTS` guards in schema.sql make that safe, so we skip the
+ * precheck entirely and rely on idempotent DDL.
  */
 export async function ensureSchema(): Promise<void> {
   if (_migrated) return
   if (_running) return _running
 
   _running = (async () => {
-    const missing = await getMissingTables()
-    if (missing.length === 0) {
-      _migrated = true
-      return
-    }
-
-    console.log(`[migrate] Missing tables: ${missing.join(", ")}. Applying schema.sql...`)
-
-    // Resolve schema.sql relative to project root.
+    // Resolve schema.sql relative to project root. next.config.js lists it
+    // in `outputFileTracingIncludes` so that the Vercel serverless bundle
+    // includes the file at runtime.
     const schemaPath = path.join(process.cwd(), "schema.sql")
     if (!fs.existsSync(schemaPath)) {
       console.warn(`[migrate] schema.sql not found at ${schemaPath}, skipping auto-migration`)
       return
     }
 
+    console.log(`[migrate] Applying schema.sql (idempotent CREATE TABLE / INDEX / EXTENSION)...`)
+
     const sql = fs.readFileSync(schemaPath, "utf8")
     const supabase = getSupabaseAdmin()
-
-    // Supabase JS client doesn't expose a raw-SQL endpoint. We use the
-    // PostgREST `rpc` route indirectly — the most reliable way for an
-    // anonymous-function deployment is to split the file into individual
-    // statements and run each `CREATE TABLE IF NOT EXISTS` we need.
-    //
-    // Schema.sql is already idempotent, so we can execute each safe DDL
-    // statement in turn. We deliberately skip DROP / storage policy
-    // statements by including only the CREATE + index lines we expect.
     const statements = parseSafeStatements(sql)
-    console.log(`[migrate] Applying ${statements.length} idempotent statements...`)
+    console.log(`[migrate] Extracted ${statements.length} safe statements...`)
 
+    // Try `exec_sql` RPC first -- the most reliable path when the
+    // project has set up the helper. If it doesn't exist, log and stop.
+    // The other option is to construct one API call per statement, which
+    // is what we'd do if exec_sql exists. If it doesn't, we degrade
+    // gracefully: the user gets a clear log message and a one-time SQL
+    // editor run is documented.
     for (const stmt of statements) {
       try {
         const { error } = await supabase.rpc("exec_sql", { sql: stmt })
         if (error) {
-          // RPC may not exist; that's expected. Fall back to per-table CREATE.
-          console.warn(`[migrate] rpc skipped (${error.message}) — relying on file-level execution.`)
+          console.warn(`[migrate] exec_sql RPC skipped (${error.message})`)
+          console.warn(`[migrate] Run schema.sql in the Supabase SQL editor if tables are missing.`)
           break
         }
       } catch (e) {
-        console.warn(`[migrate] rpc unavailable:`, e instanceof Error ? e.message : e)
+        console.warn(`[migrate] exec_sql RPC unavailable:`, e instanceof Error ? e.message : e)
+        console.warn(`[migrate] Run schema.sql in the Supabase SQL editor if tables are missing.`)
         break
       }
     }
@@ -112,13 +101,13 @@ export async function ensureSchema(): Promise<void> {
 }
 
 /**
- * Extract the CREATEs from schema.sql in declaration order. We keep this
- * conservative: CREATE TABLE IF NOT EXISTS, CREATE INDEX IF NOT EXISTS,
- * CREATE EXTENSION IF NOT EXISTS, CREATE POLICY, INSERT ... ON CONFLICT.
+ * Extract CREATE TABLE / CREATE INDEX / CREATE EXTENSION statements from
+ * schema.sql. We deliberately EXCLUDE CREATE POLICY -- policies require
+ * one-time application in the SQL editor because they reference the `anon`
+ * role and the table-level ALTER TABLE ... ENABLE ROW LEVEL SECURITY.
  *
- * We deliberately do NOT extract DROP / ALTER / RLS enable statements —
- * those are applied once by the SQL editor or by the project's first
- * manual run; the auto-migration is for creating missing tables.
+ * Each statement is fetched in declaration order. The IF NOT EXISTS
+ * guards make every statement safe to re-run.
  */
 function parseSafeStatements(sql: string): string[] {
   const out: string[] = []
@@ -128,7 +117,8 @@ function parseSafeStatements(sql: string): string[] {
 
   for (const line of lines) {
     const trimmed = line.trim()
-    const starts = /^(CREATE\s+(TABLE|INDEX|EXTENSION|POLICY)\s+IF\s+NOT\s+EXISTS|INSERT\s+INTO)/i.test(trimmed)
+    // Only CREATE TABLE / INDEX / EXTENSION -- NOT CREATE POLICY.
+    const starts = /^(CREATE\s+(TABLE|INDEX|EXTENSION)\s+IF\s+NOT\s+EXISTS)/i.test(trimmed)
     if (starts) {
       inStatement = true
       buf = [line]

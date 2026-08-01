@@ -3,6 +3,16 @@
 -- Run it directly in the Supabase SQL editor, or let the migration runner
 -- (`lib/supabase-migrate.ts`) sync it automatically on deploy.
 --
+-- Auto-migration scope (lib/supabase-migrate.ts handles on every cold start):
+--   * CREATE TABLE IF NOT EXISTS
+--   * CREATE INDEX IF NOT EXISTS
+--   * CREATE EXTENSION IF NOT EXISTS
+--
+-- Manual one-time setup (apply via Supabase SQL editor -- anon role required):
+--   * CREATE POLICY (RLS)
+--   * ALTER TABLE ... ENABLE ROW LEVEL SECURITY
+--   * CREATE OR REPLACE FUNCTION (RPCs)
+--
 -- Design rules:
 --   * Every CREATE uses IF NOT EXISTS — safe to re-run.
 --   * No DROP TABLE statements anywhere. Existing data is preserved.
@@ -187,6 +197,8 @@ CREATE TABLE IF NOT EXISTS public.dm_queue (
 -- serverless Vercel instances. Each Vercel invocation has its own JS
 -- memory, so without this table the in-Map would reset between requests
 -- and the user could spam the gate card indefinitely.
+-- The bump_unlock_attempt RPC (defined below) increments the counter
+-- atomically to avoid races between concurrent invocations.
 -- ==========================================
 CREATE TABLE IF NOT EXISTS public.unlock_attempts (
   key TEXT PRIMARY KEY,
@@ -233,11 +245,144 @@ TO public
 USING (bucket_id = 'reels');
 
 -- =========================================================================
--- SECURITY NOTE: Row Level Security (RLS) for public schema tables
--- Enable RLS to protect tables from unauthorized public access via the
--- Supabase REST API. The service-role key in server-side API routes
--- bypasses RLS, so this only restricts the public anon role.
+-- SECURITY: Row Level Security (RLS) for public schema tables
+--
+-- Service-role key (server-side) bypasses RLS, so this only restricts the
+-- anon role. The frontend uses the anon key via Supabase Auth to read its
+-- own data after sign-in. The policies below enforce per-user ownership
+-- for every table that has user_id.
+--
+-- Tables WITHOUT user_id (webhook_events, unlock_attempts) deny all anon
+-- access by default; only the service-role key can read them.
 -- =========================================================================
+
+-- ---------- Per-user policies ----------
+
+-- Drop in case of re-run
+DROP POLICY IF EXISTS "users_select_own" ON public.users;
+DROP POLICY IF EXISTS "conversations_select_own" ON public.conversations;
+DROP POLICY IF EXISTS "conversations_insert_own" ON public.conversations;
+DROP POLICY IF EXISTS "conversations_update_own" ON public.conversations;
+DROP POLICY IF EXISTS "messages_select_own" ON public.messages;
+DROP POLICY IF EXISTS "messages_insert_own" ON public.messages;
+DROP POLICY IF EXISTS "automations_select_own" ON public.automations;
+DROP POLICY IF EXISTS "automations_insert_own" ON public.automations;
+DROP POLICY IF EXISTS "automations_update_own" ON public.automations;
+DROP POLICY IF EXISTS "automations_delete_own" ON public.automations;
+DROP POLICY IF EXISTS "media_cache_select_own" ON public.media_cache;
+DROP POLICY IF EXISTS "ice_breakers_select_own" ON public.ice_breakers;
+DROP POLICY IF EXISTS "ice_breakers_insert_own" ON public.ice_breakers;
+DROP POLICY IF EXISTS "ice_breakers_update_own" ON public.ice_breakers;
+DROP POLICY IF EXISTS "ice_breakers_delete_own" ON public.ice_breakers;
+DROP POLICY IF EXISTS "content_pool_select_own" ON public.content_pool;
+DROP POLICY IF EXISTS "content_pool_insert_own" ON public.content_pool;
+DROP POLICY IF EXISTS "content_pool_update_own" ON public.content_pool;
+DROP POLICY IF EXISTS "content_pool_delete_own" ON public.content_pool;
+DROP POLICY IF EXISTS "scheduler_config_select_own" ON public.scheduler_config;
+DROP POLICY IF EXISTS "scheduler_config_upsert_own" ON public.scheduler_config;
+DROP POLICY IF EXISTS "reels_posts_select_own" ON public.reels_posts;
+DROP POLICY IF EXISTS "reels_posts_insert_own" ON public.reels_posts;
+DROP POLICY IF EXISTS "reels_posts_update_own" ON public.reels_posts;
+DROP POLICY IF EXISTS "dm_queue_select_own" ON public.dm_queue;
+
+-- users: a row is visible only to its own authenticated user (id matches)
+CREATE POLICY "users_select_own" ON public.users
+  FOR SELECT TO anon, authenticated
+  USING (id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+
+-- conversations: anyone signed-in can see their own conversations
+CREATE POLICY "conversations_select_own" ON public.conversations
+  FOR SELECT TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "conversations_insert_own" ON public.conversations
+  FOR INSERT TO anon, authenticated
+  WITH CHECK (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "conversations_update_own" ON public.conversations
+  FOR UPDATE TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+
+-- messages: visible only to the owner of the conversation
+CREATE POLICY "messages_select_own" ON public.messages
+  FOR SELECT TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "messages_insert_own" ON public.messages
+  FOR INSERT TO anon, authenticated
+  WITH CHECK (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+
+-- automations
+CREATE POLICY "automations_select_own" ON public.automations
+  FOR SELECT TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "automations_insert_own" ON public.automations
+  FOR INSERT TO anon, authenticated
+  WITH CHECK (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "automations_update_own" ON public.automations
+  FOR UPDATE TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "automations_delete_own" ON public.automations
+  FOR DELETE TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+
+-- media_cache
+CREATE POLICY "media_cache_select_own" ON public.media_cache
+  FOR SELECT TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+
+-- ice_breakers
+CREATE POLICY "ice_breakers_select_own" ON public.ice_breakers
+  FOR SELECT TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "ice_breakers_insert_own" ON public.ice_breakers
+  FOR INSERT TO anon, authenticated
+  WITH CHECK (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "ice_breakers_update_own" ON public.ice_breakers
+  FOR UPDATE TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "ice_breakers_delete_own" ON public.ice_breakers
+  FOR DELETE TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+
+-- content_pool
+CREATE POLICY "content_pool_select_own" ON public.content_pool
+  FOR SELECT TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "content_pool_insert_own" ON public.content_pool
+  FOR INSERT TO anon, authenticated
+  WITH CHECK (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "content_pool_update_own" ON public.content_pool
+  FOR UPDATE TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "content_pool_delete_own" ON public.content_pool
+  FOR DELETE TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+
+-- scheduler_config
+CREATE POLICY "scheduler_config_select_own" ON public.scheduler_config
+  FOR SELECT TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "scheduler_config_upsert_own" ON public.scheduler_config
+  FOR ALL TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+
+-- reels_posts
+CREATE POLICY "reels_posts_select_own" ON public.reels_posts
+  FOR SELECT TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "reels_posts_insert_own" ON public.reels_posts
+  FOR INSERT TO anon, authenticated
+  WITH CHECK (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+CREATE POLICY "reels_posts_update_own" ON public.reels_posts
+  FOR UPDATE TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::bigint);
+
+-- dm_queue
+CREATE POLICY "dm_queue_select_own" ON public.dm_queue
+  FOR SELECT TO anon, authenticated
+  USING (user_id = (current_setting('request.jwt.claims', true)::json->>'sub')::text);
+
+-- Now enable RLS on every table. With policies above, anon reads are
+-- either per-user (ownership check) or denied (no policies defined).
+-- Service-role key bypasses RLS for the server-side routes.
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
@@ -250,3 +395,36 @@ ALTER TABLE public.scheduler_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reels_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dm_queue ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.unlock_attempts ENABLE ROW LEVEL SECURITY;
+
+-- =========================================================================
+-- RPC: bump_unlock_attempt -- atomic increment with TTL reset
+-- Replaces the read-modify-write pattern that lost concurrent attempts.
+-- Concurrent invocations of the same key now serialize at the DB level
+-- rather than at the JS level, so no bumps are ever lost.
+-- =========================================================================
+CREATE OR REPLACE FUNCTION public.bump_unlock_attempt(p_key TEXT)
+RETURNS INTEGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  INSERT INTO public.unlock_attempts (key, count, updated_at)
+  VALUES (p_key, 1, NOW())
+  ON CONFLICT (key) DO UPDATE
+    SET count = public.unlock_attempts.count + 1,
+        updated_at = NOW()
+  RETURNING count INTO v_count;
+
+  RETURN v_count;
+END;
+$$;
+
+-- =========================================================================
+-- Periodic cleanup of stale unlock_attempts (older than 24h).
+-- Set up via Supabase pg_cron (Dashboard -> Database -> Extensions -> pg_cron), then:
+--   SELECT cron.schedule('purge-unlock-attempts', '0 * * * *',
+--     $$DELETE FROM public.unlock_attempts WHERE updated_at < NOW() - INTERVAL '24 hours'$$);
+-- Or run manually in the SQL editor:
+--   DELETE FROM public.unlock_attempts WHERE updated_at < NOW() - INTERVAL '24 hours';
+-- =========================================================================

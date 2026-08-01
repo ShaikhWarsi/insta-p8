@@ -10,8 +10,12 @@ import { getSupabaseAdmin } from "./supabase-admin"
  * table so the cap works no matter which Vercel instance handles the
  * next webhook.
  *
- * Stale entries are auto-expired after 24h (same window as Instagram's
- * private-reply quota).
+ * Stale entries are auto-expired by a scheduled pg_cron job (hourly DELETE
+ * WHERE updated_at < NOW() - INTERVAL '24 hours'). See schema.sql.
+ *
+ * The increment is done via the `bump_unlock_attempt(p_key)` RPC defined
+ * in schema.sql. Atomic INSERT ... ON CONFLICT DO UPDATE guarantees no
+ * concurrent invocations can lose a count.
  */
 
 const UNLOCK_TTL_MS = 24 * 60 * 60 * 1000
@@ -19,36 +23,6 @@ const supabaseLazy = () => getSupabaseAdmin()
 
 export function unlockKey(senderId: string, ruleId: string): string {
   return `${senderId}::${ruleId}`
-}
-
-async function loadAttempt(key: string): Promise<number | null> {
-  try {
-    const { data } = await supabaseLazy()
-      .from("unlock_attempts")
-      .select("count, updated_at")
-      .eq("key", key)
-      .single()
-    if (!data) return null
-    const updated = new Date(data.updated_at).getTime()
-    if (Date.now() - updated > UNLOCK_TTL_MS) {
-      // Stale — let caller treat as fresh
-      await supabaseLazy().from("unlock_attempts").delete().eq("key", key)
-      return null
-    }
-    return data.count as number
-  } catch {
-    return null
-  }
-}
-
-async function saveAttempt(key: string, count: number): Promise<void> {
-  try {
-    await supabaseLazy()
-      .from("unlock_attempts")
-      .upsert({ key, count, updated_at: new Date().toISOString() })
-  } catch {
-    // Swallow — DB failures fall through to first-attempt behavior
-  }
 }
 
 async function deleteAttempt(key: string): Promise<void> {
@@ -60,15 +34,31 @@ async function deleteAttempt(key: string): Promise<void> {
 }
 
 /**
- * Increment the attempt counter for a (sender, rule) pair.
- * Returns the new count after increment. If the DB is unavailable, falls
- * back to 1 (so the caller still sends the first card).
+ * Increment the attempt counter for a (sender, rule) pair via the
+ * `bump_unlock_attempt` Postgres RPC. Atomic and race-free.
+ *
+ * Returns the new count. If the RPC fails for any reason (table missing,
+ * network error, etc.), falls back to 1 so the user still gets their
+ * first gate card rather than being silently blocked.
  */
 export async function bumpUnlockAttempt(key: string): Promise<number> {
-  const current = await loadAttempt(key)
-  const next = (current ?? 0) + 1
-  await saveAttempt(key, next)
-  return next
+  try {
+    const { data, error } = await supabaseLazy().rpc("bump_unlock_attempt", {
+      p_key: key,
+    } as any)
+    if (error) {
+      console.warn(`[unlock-tracking] bump_unlock_attempt RPC failed for key=${key}: ${error.message}`)
+      return 1
+    }
+    if (typeof data !== "number") {
+      console.warn(`[unlock-tracking] bump_unlock_attempt returned non-number for key=${key}: ${JSON.stringify(data)}`)
+      return 1
+    }
+    return data
+  } catch (e) {
+    console.warn(`[unlock-tracking] bump_unlock_attempt threw for key=${key}:`, e instanceof Error ? e.message : e)
+    return 1
+  }
 }
 
 /**
