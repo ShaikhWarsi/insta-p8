@@ -239,13 +239,21 @@ Important modules:
 ```txt
 app/api/instagram/callback       OAuth login + token exchange
 app/api/instagram/webhook        DM/comment/story webhook brain
+app/api/instagram/media          User media list (reels, photos)
 app/api/automations              Automation CRUD
 app/api/ice-breakers             Ice Breaker management + sync
 app/api/inbox                    Conversations, messages, manual send
 app/api/groq                     AI auto-reply settings + chat proxy
 components/dashboard             Dashboard and automations UI
 components/inbox                 Live inbox UI
-lib/supabase-server.ts           Supabase server client
+lib/supabase-server.ts           Supabase server client (RLS-aware)
+lib/supabase-admin.ts            Service-role client (bypasses RLS)
+lib/supabase-migrate.ts          Runtime migration runner
+lib/unlock-tracking.ts           3-attempt gate-cap counter (RPC-backed)
+lib/instagram-api.ts             sendCardDM, sendTextDM, buildFollowGateCard, etc.
+schema.sql                       Canonical database schema (run in SQL editor)
+db                               Legacy schema fragment (see schema.sql)
+scripts/                         Legacy per-feature SQL migrations
 ```
 
 ---
@@ -273,7 +281,58 @@ You can also use Bun or pnpm if that is your preferred package manager.
 - Copy your project URL
 - Copy anon key
 - Copy service role key
-- Run the SQL schema from `db` and migration scripts from `scripts/` and `migrations/`
+
+#### 3a. Apply the database schema
+
+Run **`schema.sql`** in the Supabase SQL editor (**Database → SQL editor → New query**):
+
+```txt
+1. Open the Supabase dashboard for your project
+2. Click "SQL editor" in the left sidebar
+3. Click "New query"
+4. Paste the entire contents of schema.sql (project root)
+5. Click "Run" (or Ctrl+Enter)
+```
+
+`schema.sql` is the canonical source of truth for the database. It is idempotent (every `CREATE` uses `IF NOT EXISTS`) and safe to re-run. The same file is also bundled into the Vercel serverless bundle and the runtime migration runner (`lib/supabase-migrate.ts`) runs the equivalent `CREATE TABLE / INDEX / EXTENSION` statements on every cold start, so new environments self-heal.
+
+**One-time manual steps that the auto-migrator does NOT run** (applied automatically by `schema.sql` when you paste it into the SQL editor — they need the `anon` role, which the migration runner does not switch into):
+
+- `CREATE POLICY` (per-user RLS policies)
+- `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
+- `CREATE OR REPLACE FUNCTION` (RPCs like `bump_unlock_attempt`)
+
+#### 3b. Schedule the hourly cleanup (recommended)
+
+The follower-gate cap records unlock attempts in `public.unlock_attempts`. Stale entries (older than 24h) get cleaned up by either the read path or the `bump_unlock_attempt` RPC's `ON CONFLICT` clause, but a small footprint will still accumulate. Set up an hourly cleanup:
+
+1. Open **Database → Extensions** in the Supabase dashboard
+2. Enable `pg_cron`
+3. Run this SQL once in the SQL editor:
+
+```sql
+SELECT cron.schedule('purge-unlock-attempts', '0 * * * *',
+  $$DELETE FROM public.unlock_attempts WHERE updated_at < NOW() - INTERVAL '24 hours'$$);
+```
+
+To manually purge right now:
+
+```sql
+DELETE FROM public.unlock_attempts WHERE updated_at < NOW() - INTERVAL '24 hours';
+```
+
+#### 3c. Verify the install
+
+```sql
+-- Should return 12 tables
+SELECT count(*) FROM information_schema.tables
+WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
+
+-- Should return the function
+SELECT proname FROM pg_proc WHERE proname = 'bump_unlock_attempt';
+```
+
+If either query returns 0, re-run `schema.sql` from the SQL editor.
 
 ### 4. Create a Meta / Instagram app
 
