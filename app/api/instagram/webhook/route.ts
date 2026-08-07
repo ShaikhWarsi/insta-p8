@@ -13,6 +13,7 @@ import {
   verifyIdOwnership,
   sleep,
 } from "@/lib/instagram-api"
+import { generateAIReply } from "@/lib/ai-reply"
 
 const WEBHOOK_VERIFY_TOKEN = process.env.INSTAGRAM_WEBHOOK_VERIFY_TOKEN
 // Meta signs every webhook POST with HMAC-SHA256 of the raw body. Depending on app setup the
@@ -461,7 +462,35 @@ export async function POST(request: NextRequest) {
             )
           }
 
-          if (!match) continue
+          if (!match) {
+            // AI fallback: if no keyword rule matched, try AI auto-reply
+            if (user.groq_auto_reply_enabled && triggerType !== "postback") {
+              console.log(`[webhook] 🤖 No rule match — trying AI auto-reply for DM from ${senderId}`)
+              await sendSenderAction(user.access_token, senderId, "mark_seen")
+              const aiReply = await generateAIReply(triggerValue, user.ai_context || "")
+              if (aiReply) {
+                await sendSenderAction(user.access_token, senderId, "typing_on")
+                await sleep(1200)
+                const result = await sendTextDM(user.access_token, { id: senderId }, aiReply)
+                if (result?.ok && conv) {
+                  try {
+                    await supabase.from("messages").insert({
+                      id: `mid_ai_${Date.now()}_${Math.random()}`,
+                      conversation_id: conv.id,
+                      user_id: user.id,
+                      sender_id: user.business_account_id,
+                      sender_username: user.username,
+                      content: aiReply,
+                      is_from_instagram: false,
+                    })
+                  } catch (e) {
+                    console.error("[webhook] Failed to save AI reply", e)
+                  }
+                }
+              }
+            }
+            continue
+          }
 
           console.log(`[webhook] ✅ DM match: "${match.name}"`)
           const content = parseContent(match.response_content)
