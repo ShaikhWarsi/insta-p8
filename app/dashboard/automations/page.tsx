@@ -21,6 +21,9 @@ export default function AutomationsPage() {
     const [aiContext, setAiContext] = useState("")
     const [aiContextSaving, setAiContextSaving] = useState(false)
     const [aiContextSaved, setAiContextSaved] = useState(false)
+    const [groqApiKey, setGroqApiKey] = useState("")
+    const [hasApiKey, setHasApiKey] = useState(false)
+    const [showApiKey, setShowApiKey] = useState(false)
 
     useEffect(() => {
         if (!userId) return
@@ -29,6 +32,7 @@ export default function AutomationsPage() {
             .then(data => {
                 setAiEnabled(data.enabled ?? false)
                 setAiContext(data.ai_context ?? "")
+                setHasApiKey(data.has_api_key ?? false)
             })
             .catch(() => {})
             .finally(() => setAiLoading(false))
@@ -41,8 +45,14 @@ export default function AutomationsPage() {
             await fetch("/api/groq/auto-reply", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ userId, enabled: aiEnabled, ai_context: aiContext }),
+                body: JSON.stringify({
+                    userId,
+                    enabled: aiEnabled,
+                    ai_context: aiContext,
+                    ...(groqApiKey !== "" ? { groq_api_key: groqApiKey } : {}),
+                }),
             })
+            if (groqApiKey) { setHasApiKey(true); setGroqApiKey(""); setShowApiKey(false) }
             setAiContextSaved(true)
             setTimeout(() => setAiContextSaved(false), 2000)
         } catch {}
@@ -162,25 +172,63 @@ export default function AutomationsPage() {
 
                 {/* AI Context Panel */}
                 {showAiContext && (
-                    <div className="rounded-2xl border border-[#ffe14d]/20 bg-[#ffe14d]/[0.04] p-5 animate-in fade-in slide-in-from-top-2 duration-200 space-y-3">
+                    <div className="rounded-2xl border border-[#ffe14d]/20 bg-[#ffe14d]/[0.04] p-5 animate-in fade-in slide-in-from-top-2 duration-200 space-y-4">
                         <div className="flex items-center gap-2">
                             <Brain className="w-4 h-4 text-[#ffe14d]" />
-                            <span className="text-sm font-semibold text-[#ffe14d]">AI Personality Context</span>
+                            <span className="text-sm font-semibold text-[#ffe14d]">AI Settings</span>
                         </div>
-                        <p className="text-xs text-neutral-500">Tell AI about your account — niche, products, tone, what to say/avoid. More context = more human replies.</p>
-                        <textarea
-                            value={aiContext}
-                            onChange={e => setAiContext(e.target.value)}
-                            placeholder={`e.g. This is a fitness coaching account. I sell online training programs (₹2999/mo). My tone is motivating but chill. If someone asks about pricing, tell them to DM for a free consultation. Never promise specific results.`}
-                            rows={4}
-                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-600 resize-none focus:outline-none focus:border-[#ffe14d]/50 transition-colors"
-                        />
+
+                        {/* Groq API Key */}
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs text-neutral-400 font-medium">Groq API Key</label>
+                                {hasApiKey && !showApiKey && (
+                                    <span className="text-[10px] text-emerald-500 font-mono">● key saved</span>
+                                )}
+                            </div>
+                            {showApiKey || !hasApiKey ? (
+                                <div className="flex gap-2">
+                                    <input
+                                        type="password"
+                                        value={groqApiKey}
+                                        onChange={e => setGroqApiKey(e.target.value)}
+                                        placeholder={hasApiKey ? "Enter new key to replace…" : "gsk_…"}
+                                        className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-[#ffe14d]/50 transition-colors font-mono"
+                                    />
+                                    {hasApiKey && (
+                                        <button onClick={() => setShowApiKey(false)} className="px-3 py-2.5 rounded-xl border border-white/10 text-neutral-500 text-xs hover:text-white transition-colors">Cancel</button>
+                                    )}
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => setShowApiKey(true)}
+                                    className="w-full text-left px-4 py-2.5 rounded-xl border border-white/10 text-neutral-500 text-sm hover:border-white/20 hover:text-white transition-colors"
+                                >
+                                    •••••••••••••••••••• <span className="text-xs ml-2 text-neutral-600">click to replace</span>
+                                </button>
+                            )}
+                            <p className="text-[11px] text-neutral-600">Get a free key at <span className="text-neutral-400">console.groq.com</span> — fast &amp; free tier available.</p>
+                        </div>
+
+                        {/* AI Personality Context */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs text-neutral-400 font-medium">AI Personality Context</label>
+                            <p className="text-[11px] text-neutral-600">Tell AI about your account — niche, products, tone, what to say/avoid.</p>
+                            <textarea
+                                value={aiContext}
+                                onChange={e => setAiContext(e.target.value)}
+                                placeholder={`e.g. This is a fitness coaching account. I sell online training programs (₹2999/mo). My tone is motivating but chill. If someone asks about pricing, tell them to DM for a free consultation. Never promise specific results.`}
+                                rows={4}
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-600 resize-none focus:outline-none focus:border-[#ffe14d]/50 transition-colors"
+                            />
+                        </div>
+
                         <button
                             onClick={handleSaveAiContext}
                             disabled={aiContextSaving}
                             className="px-4 py-2 rounded-xl bg-[#ffe14d] hover:brightness-95 text-black text-xs font-bold transition-all disabled:opacity-50"
                         >
-                            {aiContextSaving ? 'Saving...' : aiContextSaved ? 'Saved ✓' : 'Save Context'}
+                            {aiContextSaving ? 'Saving...' : aiContextSaved ? 'Saved ✓' : 'Save'}
                         </button>
                     </div>
                 )}

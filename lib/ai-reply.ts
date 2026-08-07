@@ -1,8 +1,8 @@
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 
-export async function generateAIReply(userMessage: string, aiContext: string): Promise<string | null> {
-  const apiKey = process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY
+export async function generateAIReply(userMessage: string, aiContext: string, userApiKey?: string | null): Promise<string | null> {
+  const apiKey = userApiKey || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY
   if (!apiKey) {
     console.warn("[ai-reply] No API key configured (GROQ_API_KEY or OPENAI_API_KEY)")
     return null

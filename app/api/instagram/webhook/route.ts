@@ -467,7 +467,7 @@ export async function POST(request: NextRequest) {
             if (user.groq_auto_reply_enabled && triggerType !== "postback") {
               console.log(`[webhook] 🤖 No rule match — trying AI auto-reply for DM from ${senderId}`)
               await sendSenderAction(user.access_token, senderId, "mark_seen")
-              const aiReply = await generateAIReply(triggerValue, user.ai_context || "")
+              const aiReply = await generateAIReply(triggerValue, user.ai_context || "", user.groq_api_key)
               if (aiReply) {
                 await sendSenderAction(user.access_token, senderId, "typing_on")
                 await sleep(1200)
