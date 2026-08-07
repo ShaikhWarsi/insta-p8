@@ -27,8 +27,8 @@ export async function generateAIReply(
   const model = userModel || process.env.AI_MODEL || (process.env.GROQ_API_KEY ? "llama-3.1-8b-instant" : "gpt-4o-mini")
 
   const systemPrompt = aiContext?.trim()
-    ? `You are an Instagram DM assistant. ${aiContext.trim()}\n\nReply naturally in 1-2 sentences. Be conversational, warm, and on-brand. Do not use hashtags. Never reveal you are an AI.`
-    : "You are an Instagram DM assistant. Reply naturally and helpfully in 1-2 sentences. Be conversational. Do not use hashtags. Never reveal you are an AI."
+    ? `You are replying to Instagram DMs on behalf of this account: ${aiContext.trim()}\n\nRules: max 1 sentence, casual Instagram tone, no hashtags, no emojis unless natural, never reveal you are AI. If you don't know something specific, say you'll get back to them.`
+    : "You are replying to Instagram DMs. Keep replies to 1 short sentence. Casual tone. No hashtags. Never reveal you are AI."
 
   try {
     const res = await fetch(endpoint, {
