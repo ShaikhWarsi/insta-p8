@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Loader2, Plus, Trash2, Save, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
-import type { IceBreaker } from "@/types/db"
+
+type IceBreakerRow = { id?: string; question: string; response: string }
 
 export function IceBreakersManager() {
     const { userId, isLoading } = useInstagramSession()
-    const [breakers, setBreakers] = useState<Partial<IceBreaker>[]>([])
+    const [breakers, setBreakers] = useState<IceBreakerRow[]>([])
     const [saving, setSaving] = useState(false)
     const [fetching, setFetching] = useState(true)
 
@@ -76,20 +77,47 @@ export function IceBreakersManager() {
         }
     }
 
-    if (isLoading || fetching && !breakers.length) {
-        return <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-purple-500" /></div>
-    }
+    if (isLoading) {
+            return (
+                <div className="p-10 flex justify-center">
+                    <Loader2 className="animate-spin text-accent-yellow-foreground dark:text-accent-yellow" />
+                </div>
+            )
+        }
+
+        if (!userId) {
+            return (
+                <div className="space-y-6 max-w-2xl mx-auto">
+                    <div className="text-center py-10 border border-dashed border-border rounded-xl text-muted-foreground bg-card/40">
+                        <p className="text-sm font-medium">Not connected</p>
+                        <p className="text-xs mt-1">Connect your Instagram account to manage Ice Breakers.</p>
+                    </div>
+                </div>
+            )
+        }
+
+        if (fetching && !breakers.length) {
+            return (
+                <div className="p-10 flex justify-center">
+                    <Loader2 className="animate-spin text-accent-yellow-foreground dark:text-accent-yellow" />
+                </div>
+            )
+        }
 
     return (
         <div className="space-y-6 max-w-2xl mx-auto">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="font-serif-display text-3xl text-white">Ice Breakers</h2>
+                    <h2 className="font-serif-display text-3xl text-foreground">Ice Breakers</h2>
                     <p className="text-muted-foreground text-sm">
                         Questions people see when they start a chat with you.
                     </p>
                 </div>
-                <Button onClick={handleSave} disabled={saving} className="bg-[#ffe14d] hover:brightness-95 text-black font-bold">
+                <Button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="bg-primary text-primary-foreground hover:opacity-90 font-bold"
+                >
                     {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                     Save & Sync
                 </Button>
@@ -97,7 +125,7 @@ export function IceBreakersManager() {
 
             <div className="space-y-4">
                 {breakers.map((item, idx) => (
-                    <div key={idx} className="bg-white/5 border border-white/10 p-4 rounded-xl space-y-3 relative group">
+                    <div key={idx} className="bg-card border border-border p-4 rounded-xl space-y-3 relative group">
                         <div className="flex justify-between items-start gap-4">
                             <div className="flex-1 space-y-3">
                                 <div>
@@ -106,7 +134,7 @@ export function IceBreakersManager() {
                                         value={item.question}
                                         onChange={e => handleChange(idx, "question", e.target.value)}
                                         placeholder="e.g., What are your prices?"
-                                        className="bg-black/20 border-white/10 mt-1"
+                                        className="bg-background border-input mt-1 focus-visible:ring-ring"
                                         maxLength={80}
                                     />
                                 </div>
@@ -116,7 +144,7 @@ export function IceBreakersManager() {
                                         value={item.response}
                                         onChange={e => handleChange(idx, "response", e.target.value)}
                                         placeholder="The reply users will receive..."
-                                        className="bg-black/20 border-white/10 mt-1"
+                                        className="bg-background border-input mt-1 focus-visible:ring-ring"
                                         rows={2}
                                     />
                                 </div>
@@ -125,7 +153,8 @@ export function IceBreakersManager() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => handleRemove(idx)}
-                                className="text-red-400 hover:text-red-300 hover:bg-red-400/10"
+                                aria-label="Remove ice breaker"
+                                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             >
                                 <Trash2 className="w-4 h-4" />
                             </Button>
@@ -134,20 +163,24 @@ export function IceBreakersManager() {
                 ))}
 
                 {breakers.length === 0 && (
-                    <div className="text-center py-10 border border-dashed border-white/10 rounded-xl text-muted-foreground">
+                    <div className="text-center py-10 border border-dashed border-border rounded-xl text-muted-foreground bg-card/40">
                         No ice breakers yet. Add one to get started!
                     </div>
                 )}
 
                 {breakers.length < 4 && (
-                    <Button variant="outline" onClick={handleAdd} className="w-full border-dashed border-white/20 hover:bg-white/5 text-muted-foreground hover:text-white">
+                    <Button
+                        variant="outline"
+                        onClick={handleAdd}
+                        className="w-full border-dashed border-border hover:bg-accent text-muted-foreground hover:text-foreground"
+                    >
                         <Plus className="w-4 h-4 mr-2" /> Add Question
                     </Button>
                 )}
             </div>
 
-            <div className="bg-white/[0.04] border border-white/10 p-4 rounded-xl flex gap-3 text-sm text-neutral-300">
-                <RefreshCw className="w-5 h-5 shrink-0" />
+            <div className="bg-muted border border-border p-4 rounded-xl flex gap-3 text-sm text-foreground">
+                <RefreshCw className="w-5 h-5 shrink-0 text-muted-foreground" />
                 <p>
                     Changes made here are automatically synced to your Instagram Profile. It may take a few minutes for them to appear for all users.
                 </p>

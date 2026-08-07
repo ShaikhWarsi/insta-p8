@@ -25,10 +25,10 @@ export async function GET(request: NextRequest) {
     // Ye 'instagram.com' use karega jo aapke token ke saath compatible hai.
     // Hum '/me' use kar rahe hain taaki ID mismatch ka lafda hi na ho.
     const url = `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp&limit=24&access_token=${user.access_token}`
-    
-    console.log("[v0] Fetching Media from:", url) 
 
-    const res = await fetch(url, { cache: 'no-store' }) 
+    console.log("[v0] Fetching Media from:", url)
+
+    const res = await fetch(url, { cache: 'no-store' })
     const data = await res.json()
 
     if (data.error) {
@@ -40,7 +40,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: data.error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ data: data.data || [] })
+    // Normalize: pick thumbnail_url for videos, media_url for images.
+    // Skips items with neither URL so we never return the broken `image_url: null` shape.
+    const normalized = (data.data || [])
+      .map((m: any) => ({
+        ...m,
+        image_url: m.thumbnail_url || m.media_url || null,
+      }))
+      .filter((m: any) => typeof m.image_url === "string" && m.image_url.length > 0)
+
+    return NextResponse.json({ data: normalized })
   } catch (error) {
     console.error("[v0] Server Error:", error)
     return NextResponse.json({ error: "Server Error" }, { status: 500 })
