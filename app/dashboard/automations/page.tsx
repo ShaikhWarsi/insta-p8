@@ -24,6 +24,8 @@ export default function AutomationsPage() {
     const [groqApiKey, setGroqApiKey] = useState("")
     const [hasApiKey, setHasApiKey] = useState(false)
     const [showApiKey, setShowApiKey] = useState(false)
+    const [aiBaseUrl, setAiBaseUrl] = useState("")
+    const [aiModel, setAiModel] = useState("")
 
     useEffect(() => {
         if (!userId) return
@@ -33,6 +35,8 @@ export default function AutomationsPage() {
                 setAiEnabled(data.enabled ?? false)
                 setAiContext(data.ai_context ?? "")
                 setHasApiKey(data.has_api_key ?? false)
+                setAiBaseUrl(data.ai_base_url ?? "")
+                setAiModel(data.ai_model ?? "")
             })
             .catch(() => {})
             .finally(() => setAiLoading(false))
@@ -49,6 +53,8 @@ export default function AutomationsPage() {
                     userId,
                     enabled: aiEnabled,
                     ai_context: aiContext,
+                    ai_base_url: aiBaseUrl,
+                    ai_model: aiModel,
                     ...(groqApiKey !== "" ? { groq_api_key: groqApiKey } : {}),
                 }),
             })
@@ -178,10 +184,10 @@ export default function AutomationsPage() {
                             <span className="text-sm font-semibold text-[#ffe14d]">AI Settings</span>
                         </div>
 
-                        {/* Groq API Key */}
+                        {/* API Key */}
                         <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                                <label className="text-xs text-neutral-400 font-medium">Groq API Key</label>
+                                <label className="text-xs text-neutral-400 font-medium">API Key</label>
                                 {hasApiKey && !showApiKey && (
                                     <span className="text-[10px] text-emerald-500 font-mono">● key saved</span>
                                 )}
@@ -192,7 +198,7 @@ export default function AutomationsPage() {
                                         type="password"
                                         value={groqApiKey}
                                         onChange={e => setGroqApiKey(e.target.value)}
-                                        placeholder={hasApiKey ? "Enter new key to replace…" : "gsk_…"}
+                                        placeholder={hasApiKey ? "Enter new key to replace…" : "sk_… or gsk_…"}
                                         className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-[#ffe14d]/50 transition-colors font-mono"
                                     />
                                     {hasApiKey && (
@@ -207,7 +213,31 @@ export default function AutomationsPage() {
                                     •••••••••••••••••••• <span className="text-xs ml-2 text-neutral-600">click to replace</span>
                                 </button>
                             )}
-                            <p className="text-[11px] text-neutral-600">Get a free key at <span className="text-neutral-400">console.groq.com</span> — fast &amp; free tier available.</p>
+                        </div>
+
+                        {/* API Base URL */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs text-neutral-400 font-medium">API Base URL <span className="text-neutral-600 font-normal">(optional)</span></label>
+                            <input
+                                type="text"
+                                value={aiBaseUrl}
+                                onChange={e => setAiBaseUrl(e.target.value)}
+                                placeholder="https://api.groq.com/v1  (default) or your own endpoint"
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-[#ffe14d]/50 transition-colors font-mono"
+                            />
+                            <p className="text-[11px] text-neutral-600">Any OpenAI-compatible endpoint works — Groq, OpenAI, Together, your own proxy.</p>
+                        </div>
+
+                        {/* Model */}
+                        <div className="space-y-1.5">
+                            <label className="text-xs text-neutral-400 font-medium">Model <span className="text-neutral-600 font-normal">(optional)</span></label>
+                            <input
+                                type="text"
+                                value={aiModel}
+                                onChange={e => setAiModel(e.target.value)}
+                                placeholder="llama-3.1-8b-instant  (Groq default)"
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-[#ffe14d]/50 transition-colors font-mono"
+                            />
                         </div>
 
                         {/* AI Personality Context */}
