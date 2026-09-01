@@ -152,10 +152,16 @@ async function verifyFollowStatus(igScopedId: string, pageAccessToken: string): 
     if (!response.ok) {
       const errorText = await response.text()
       console.error(`[webhook] Follow status check failed: ${response.status} ${errorText}`)
-      // Distinguish auth failures (fail closed) from transient (fail open)
-      if (response.status === 401 || response.status === 403) {
-        return { follows: null, error: 'auth' }
-      }
+      // Distinguish auth/consent failures (fail closed) from transient (fail open)
+      // Meta can return consent errors as 500 code 230: "User consent is required to access user profile"
+      let isAuth = response.status === 401 || response.status === 403
+      try {
+        const parsed = JSON.parse(errorText)
+        const code = parsed?.error?.code
+        const msg = String(parsed?.error?.message ?? "")
+        if (code === 230 || code === 10 || /consent|permission/i.test(msg)) isAuth = true
+      } catch {}
+      if (isAuth) return { follows: null, error: 'auth' }
       // 5xx, 429, network timeout, etc. → transient, fail open
       return { follows: null, error: 'transient' }
     }
