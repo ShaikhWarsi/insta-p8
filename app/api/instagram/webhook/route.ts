@@ -365,27 +365,39 @@ export async function POST(request: NextRequest) {
                           await replyToComment(user.access_token, commentId, getPublicReply())
                         }
                         if (replyMode !== "public_only") {
-                          await sendCardDM(
-                            user.access_token,
-                            { comment_id: commentId },
-                            buildFollowGateCard({ username: user.username, ruleId: match.id }),
-                          )
+                          const gateCard2 = buildFollowGateCard({ username: user.username, ruleId: match.id })
+                          let r2: any = await sendCardDM(user.access_token, { comment_id: commentId }, gateCard2)
+                          if (!r2?.ok && r2?.error?.error_subcode === 1545133) {
+                            r2 = await sendTextDM(
+                              user.access_token,
+                              { comment_id: commentId },
+                              `Follow @${user.username} to unlock! https://instagram.com/${user.username}`,
+                              [{ title: "I Followed ✅", payload: `UNLOCK_CONTENT_${match.id}` }],
+                            )
+                          }
                         }
                       } else {
                         // null → unverifiable. Distinguish auth vs transient.
                         const isAuthError = followResult.error === 'auth'
                         if (isAuthError) {
-                          // Auth/permission failure — fail CLOSED: send gate card
+                          // Auth/permission failure — fail CLOSED: send gate. Card blocked for 230/EU/minors (1545133) -> fallback to text+quick_reply
                           console.warn(`[webhook] ⚠️ Comment follower gate auth failure for @${senderId}; sending gate`)
                           if (replyMode !== "dm_only") {
                             await replyToComment(user.access_token, commentId, getPublicReply())
                           }
                           if (replyMode !== "public_only") {
-                            await sendCardDM(
-                              user.access_token,
-                              { comment_id: commentId },
-                              buildFollowGateCard({ username: user.username, ruleId: match.id }),
-                            )
+                            const gateCard = buildFollowGateCard({ username: user.username, ruleId: match.id })
+                            let r: any = await sendCardDM(user.access_token, { comment_id: commentId }, gateCard)
+                            if (!r?.ok && r?.error?.error_subcode === 1545133) {
+                              r = await sendTextDM(
+                                user.access_token,
+                                { comment_id: commentId },
+                                `Follow @${user.username} to unlock! https://instagram.com/${user.username}`,
+                                [{ title: "I Followed ✅", payload: `UNLOCK_CONTENT_${match.id}` }],
+                              )
+                              if (r?.ok) console.log(`[webhook] ✅ gate fallback text sent for @${senderId} (card blocked 1545133)`)
+                              else console.error(`[webhook] gate fallback failed for @${senderId}`, r?.error)
+                            }
                           }
                         } else {
                           // Transient failure — fail OPEN: deliver content (with public reply if allowed)
