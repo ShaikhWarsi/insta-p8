@@ -368,12 +368,8 @@ export async function POST(request: NextRequest) {
                           const gateCard2 = buildFollowGateCard({ username: user.username, ruleId: match.id })
                           let r2: any = await sendCardDM(user.access_token, { comment_id: commentId }, gateCard2)
                           if (!r2?.ok && r2?.error?.error_subcode === 1545133) {
-                            r2 = await sendTextDM(
-                              user.access_token,
-                              { comment_id: commentId },
-                              `Follow @${user.username} to unlock! https://instagram.com/${user.username}`,
-                              [{ title: "I Followed ✅", payload: `UNLOCK_CONTENT_${match.id}` }],
-                            )
+                            r2 = await sendTextDM(user.access_token, { id: senderId }, `Follow @${user.username} to unlock! https://instagram.com/${user.username}\n\nAfter following, reply here with "I followed"`)
+                            if (r2?.ok) await sendTextDM(user.access_token, { id: senderId }, `Tap to confirm:`, [{ title: "I Followed ✅", payload: `UNLOCK_CONTENT_${match.id}` }]).catch(()=>{})
                           }
                         }
                       } else {
@@ -389,12 +385,22 @@ export async function POST(request: NextRequest) {
                             const gateCard = buildFollowGateCard({ username: user.username, ruleId: match.id })
                             let r: any = await sendCardDM(user.access_token, { comment_id: commentId }, gateCard)
                             if (!r?.ok && r?.error?.error_subcode === 1545133) {
+                              // card blocked for 230/EU/minors - quick_replies stripped on comment_id private replies,
+                              // so send plain text via {id} with instruction. User replies "I followed" -> DM keyword unlock.
                               r = await sendTextDM(
                                 user.access_token,
-                                { comment_id: commentId },
-                                `Follow @${user.username} to unlock! https://instagram.com/${user.username}`,
-                                [{ title: "I Followed ✅", payload: `UNLOCK_CONTENT_${match.id}` }],
+                                { id: senderId },
+                                `Follow @${user.username} to unlock! https://instagram.com/${user.username}\n\nAfter following, reply here with "I followed"`,
                               )
+                              // also try quick_reply via DM id (allowed where comment_id stripped)
+                              if (r?.ok) {
+                                await sendTextDM(
+                                  user.access_token,
+                                  { id: senderId },
+                                  `Tap to confirm:`,
+                                  [{ title: "I Followed ✅", payload: `UNLOCK_CONTENT_${match.id}` }],
+                                ).catch(() => {})
+                              }
                               if (r?.ok) console.log(`[webhook] ✅ gate fallback text sent for @${senderId} (card blocked 1545133)`)
                               else console.error(`[webhook] gate fallback failed for @${senderId}`, r?.error)
                             }
