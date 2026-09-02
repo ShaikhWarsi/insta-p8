@@ -367,8 +367,11 @@ export async function POST(request: NextRequest) {
                         if (replyMode !== "public_only") {
                           const gateCard2 = buildFollowGateCard({ username: user.username, ruleId: match.id })
                           let r2: any = await sendCardDM(user.access_token, { comment_id: commentId }, gateCard2)
-                          if (!r2?.ok && r2?.error?.error_subcode === 1545133) {
+                          if (!r2?.ok && (r2?.error?.error_subcode === 1545133 || r2?.error?.error_subcode === 2534025)) {
                             r2 = await sendTextDM(user.access_token, { comment_id: commentId }, `Almost there! ✨ Just follow @${user.username} https://instagram.com/${user.username} and reply here with "I followed" — I'll send it instantly!`)
+                            if (!r2?.ok && r2?.error?.error_subcode === 2534025) {
+                              r2 = await sendTextDM(user.access_token, { id: senderId }, `Almost there! ✨ Just follow @${user.username} https://instagram.com/${user.username} and reply "I followed" here — I'll send it instantly!`)
+                            }
                           }
                         }
                       } else {
@@ -383,14 +386,18 @@ export async function POST(request: NextRequest) {
                           if (replyMode !== "public_only") {
                             const gateCard = buildFollowGateCard({ username: user.username, ruleId: match.id })
                             let r: any = await sendCardDM(user.access_token, { comment_id: commentId }, gateCard)
-                            if (!r?.ok && r?.error?.error_subcode === 1545133) {
-                              // card blocked for 230/EU/minors - {id} fails 2534022 outside 24h window, so fallback to plain text via {comment_id} (7-day private reply window, text allowed)
+                            if (!r?.ok && (r?.error?.error_subcode === 1545133 || r?.error?.error_subcode === 2534025)) {
+                              // card blocked 1545133 (media to non-follower) or 2534025 (comment invalid for private reply) -> try text via comment_id first (7-day window)
                               r = await sendTextDM(
                                 user.access_token,
                                 { comment_id: commentId },
                                 `Almost there! ✨ Just follow @${user.username} https://instagram.com/${user.username} and reply here with "I followed" — I'll send it instantly!`,
                               )
-                              if (r?.ok) console.log(`[webhook] ✅ gate fallback text sent for @${senderId} (card blocked 1545133)`)
+                              if (!r?.ok && r?.error?.error_subcode === 2534025) {
+                                // comment_id invalid (nested reply / already replied) -> try DM via {id} (24h window)
+                                r = await sendTextDM(user.access_token, { id: senderId }, `Almost there! ✨ Just follow @${user.username} https://instagram.com/${user.username} and reply "I followed" here — I'll send it instantly!`)
+                              }
+                              if (r?.ok) console.log(`[webhook] ✅ gate fallback text sent for @${senderId} (card blocked ${r?.error?.error_subcode ?? 1545133})`)
                               else console.error(`[webhook] gate fallback failed for @${senderId}`, r?.error)
                             }
                           }
@@ -594,7 +601,7 @@ export async function POST(request: NextRequest) {
                     let match = null
 
                     const isUnlockEvent = triggerType === "postback" && triggerValue.startsWith("UNLOCK_CONTENT_")
-                    const isTextUnlock = !isUnlockEvent && triggerType === "keyword" && /^\s*i\s*followed\s*!?\s*✅?\s*$/i.test(triggerValue)
+                    const isTextUnlock = !isUnlockEvent && triggerType === "keyword" && /^\s*(i\s*followed|followed|done|tap\s*done)\s*!?\s*✅?\s*$/i.test(triggerValue)
                     if (isTextUnlock) {
                       // Fallback text gate for 230/EU/minors where card quick_reply stripped - treat "I followed" plain text as unlock
                       const gated = automations.filter((a: any) => parseContent(a.response_content)?.check_follow === true)
