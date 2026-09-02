@@ -368,8 +368,7 @@ export async function POST(request: NextRequest) {
                           const gateCard2 = buildFollowGateCard({ username: user.username, ruleId: match.id })
                           let r2: any = await sendCardDM(user.access_token, { comment_id: commentId }, gateCard2)
                           if (!r2?.ok && r2?.error?.error_subcode === 1545133) {
-                            r2 = await sendTextDM(user.access_token, { id: senderId }, `Follow @${user.username} to unlock! https://instagram.com/${user.username}\n\nAfter following, reply here with "I followed"`)
-                            if (r2?.ok) await sendTextDM(user.access_token, { id: senderId }, `Tap to confirm:`, [{ title: "I Followed ✅", payload: `UNLOCK_CONTENT_${match.id}` }]).catch(()=>{})
+                            r2 = await sendTextDM(user.access_token, { comment_id: commentId }, `Almost there! ✨ Just follow @${user.username} https://instagram.com/${user.username} and reply here with "I followed" — I'll send it instantly!`)
                           }
                         }
                       } else {
@@ -385,22 +384,12 @@ export async function POST(request: NextRequest) {
                             const gateCard = buildFollowGateCard({ username: user.username, ruleId: match.id })
                             let r: any = await sendCardDM(user.access_token, { comment_id: commentId }, gateCard)
                             if (!r?.ok && r?.error?.error_subcode === 1545133) {
-                              // card blocked for 230/EU/minors - quick_replies stripped on comment_id private replies,
-                              // so send plain text via {id} with instruction. User replies "I followed" -> DM keyword unlock.
+                              // card blocked for 230/EU/minors - {id} fails 2534022 outside 24h window, so fallback to plain text via {comment_id} (7-day private reply window, text allowed)
                               r = await sendTextDM(
                                 user.access_token,
-                                { id: senderId },
-                                `Follow @${user.username} to unlock! https://instagram.com/${user.username}\n\nAfter following, reply here with "I followed"`,
+                                { comment_id: commentId },
+                                `Almost there! ✨ Just follow @${user.username} https://instagram.com/${user.username} and reply here with "I followed" — I'll send it instantly!`,
                               )
-                              // also try quick_reply via DM id (allowed where comment_id stripped)
-                              if (r?.ok) {
-                                await sendTextDM(
-                                  user.access_token,
-                                  { id: senderId },
-                                  `Tap to confirm:`,
-                                  [{ title: "I Followed ✅", payload: `UNLOCK_CONTENT_${match.id}` }],
-                                ).catch(() => {})
-                              }
                               if (r?.ok) console.log(`[webhook] ✅ gate fallback text sent for @${senderId} (card blocked 1545133)`)
                               else console.error(`[webhook] gate fallback failed for @${senderId}`, r?.error)
                             }
@@ -605,6 +594,16 @@ export async function POST(request: NextRequest) {
                     let match = null
 
                     const isUnlockEvent = triggerType === "postback" && triggerValue.startsWith("UNLOCK_CONTENT_")
+                    const isTextUnlock = !isUnlockEvent && triggerType === "keyword" && /^\s*i\s*followed\s*!?\s*✅?\s*$/i.test(triggerValue)
+                    if (isTextUnlock) {
+                      // Fallback text gate for 230/EU/minors where card quick_reply stripped - treat "I followed" plain text as unlock
+                      const gated = automations.filter((a: any) => parseContent(a.response_content)?.check_follow === true)
+                      // prefer most recent gated comment automation, else any gated
+                      const candidate = gated.find((a: any) => a.trigger_source === "comment") || gated[0] || null
+                      if (candidate) {
+                        match = candidate
+                      }
+                    }
 
                     if (triggerType === "postback") {
                       if (isUnlockEvent) {
@@ -680,7 +679,7 @@ export async function POST(request: NextRequest) {
                     const attemptKey = unlockKey(senderId, match.id)
 
                     if (content.check_follow === true) {
-                      if (isUnlockEvent) {
+                      if (isUnlockEvent || isTextUnlock) {
                         // Explicit unlock path: user tapped "I Followed!" — re-verify before delivering.
                         // Rate-limit gate cards on unverifiable results; after N attempts, send a single
                         // "we couldn't verify" message and stop responding for this sender+rule.
