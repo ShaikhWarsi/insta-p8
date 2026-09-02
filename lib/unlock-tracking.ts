@@ -68,3 +68,56 @@ export async function bumpUnlockAttempt(key: string): Promise<number> {
 export async function clearUnlockAttempts(key: string): Promise<void> {
   await deleteAttempt(key)
 }
+
+/**
+ * Record the active ruleId that gated a sender so that if they reply
+ * with plain text (e.g. "I followed"), we know exactly which automation
+ * to unlock without guessing.
+ */
+export async function setPendingGate(senderId: string, ruleId: string): Promise<void> {
+  try {
+    const key = `pending_gate::${senderId}::${ruleId}`
+    await supabaseLazy().from("unlock_attempts").upsert({
+      key,
+      count: 1,
+      updated_at: new Date().toISOString(),
+    })
+  } catch {
+    // Non-critical, swallow
+  }
+}
+
+/**
+ * Retrieve the pending gated ruleId for a sender, if any.
+ */
+export async function getPendingGate(senderId: string): Promise<string | null> {
+  try {
+    const { data } = await supabaseLazy()
+      .from("unlock_attempts")
+      .select("key")
+      .like("key", `pending_gate::${senderId}::%`)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+    if (data && data.length > 0) {
+      const parts = data[0].key.split("::")
+      return parts[2] || null
+    }
+  } catch {
+    // Fallback
+  }
+  return null
+}
+
+/**
+ * Clear any pending gate records for a sender.
+ */
+export async function clearPendingGate(senderId: string): Promise<void> {
+  try {
+    await supabaseLazy()
+      .from("unlock_attempts")
+      .delete()
+      .like("key", `pending_gate::${senderId}::%`)
+  } catch {
+    // Non-critical, swallow
+  }
+}
