@@ -122,15 +122,18 @@ async function sendAutomationResponse(
     result = await sendMediaDM(token, recipient, content.media.type || "image", content.media.url)
     if (result.ok && content.message) {
       result = await sendTextDM(token, recipient, content.message, quickReplies)
-    } else if (!result.ok && content.message) {
+    } else if (!result.ok) {
+      const fallbackText = content.message || `Here is your content: ${content.media.url}`
       console.warn(`[webhook] Media DM failed (${result.error?.error_subcode || result.error?.message || "unknown"}); falling back to text message`)
-      result = await sendTextDM(token, recipient, content.message, quickReplies)
+      result = await sendTextDM(token, recipient, fallbackText, quickReplies)
     }
   } else if (content.card) {
     result = await sendCardDM(token, recipient, content.card)
-    if (!result.ok && content.message) {
+    if (!result.ok) {
+      const cardText = [content.card.title, content.card.subtitle].filter(Boolean).join(" — ")
+      const fallbackText = content.message || cardText || "Here is your requested content!"
       console.warn(`[webhook] Card DM failed (${result.error?.error_subcode || result.error?.message || "unknown"}); falling back to text message`)
-      result = await sendTextDM(token, recipient, content.message, quickReplies)
+      result = await sendTextDM(token, recipient, fallbackText, quickReplies)
     }
   } else if (content.message) {
     result = await sendTextDM(token, recipient, content.message, quickReplies)
@@ -412,6 +415,16 @@ export async function POST(request: NextRequest) {
                               console.log(`[webhook] ✅ Gate fallback text sent for @${senderId}`)
                             } else {
                               console.error(`[webhook] Gate fallback failed for @${senderId}`, r?.error)
+                              // If private reply AND DM both failed (e.g. 2534025 + 2534022), reply publicly on comment
+                              try {
+                                await replyToComment(
+                                  user.access_token,
+                                  commentId,
+                                  `Hey! 👋 Please send us a direct message with "follow" to get your link — Instagram won't let us message you first! ✨`,
+                                )
+                              } catch (replyErr) {
+                                console.error(`[webhook] Failed to send fallback public comment reply`, replyErr)
+                              }
                             }
                           }
                         }
@@ -610,53 +623,70 @@ export async function POST(request: NextRequest) {
           }
 
           // ---------- Match automation ----------
-                    const dmAutomations = automations.filter((a: any) => a.trigger_source === "dm" || !a.trigger_source)
-                    let match = null
+          const dmAutomations = automations.filter((a: any) => a.trigger_source === "dm" || !a.trigger_source)
+          let match = null
 
-                    const isUnlockEvent = triggerType === "postback" && triggerValue.startsWith("UNLOCK_CONTENT_")
-                    const isTextUnlock = !isUnlockEvent && triggerType === "keyword" && /^\s*(i\s*followed|followed|done|tap\s*done)\s*!?\s*✅?\s*$/i.test(triggerValue)
-                    if (isTextUnlock) {
-                      // Check if there is a pending gate recorded for this sender from a comment or DM
-                      const pendingRuleId = await getPendingGate(senderId)
-                      if (pendingRuleId) {
-                        match = automations.find((a: any) => a.id === pendingRuleId) || null
-                      }
-                      if (!match) {
-                        // Fallback: match most recent gated comment automation, else any gated
-                        const gated = automations.filter((a: any) => parseContent(a.response_content)?.check_follow === true)
-                        match = gated.find((a: any) => a.trigger_source === "comment") || gated[0] || null
-                      }
-                    }
+          const isUnlockEvent = triggerType === "postback" && triggerValue.startsWith("UNLOCK_CONTENT_")
 
-                    if (triggerType === "postback") {
-                      if (isUnlockEvent) {
-                        const ruleId = triggerValue.replace("UNLOCK_CONTENT_", "")
-                        match = automations.find((a: any) => a.id === ruleId)
-                      } else if (triggerValue.startsWith("ICE_BREAKER_")) {
-                        const iceBreakerId = triggerValue.replace("ICE_BREAKER_", "")
-                        const { data: ib } = await supabase
-                          .from("ice_breakers")
-                          .select("*")
-                          .eq("id", iceBreakerId)
-                          .eq("user_id", user.id)
-                          .single()
-                        if (ib) {
-                          match = { name: "Ice Breaker: " + ib.question, response_content: { message: ib.response } }
-                        }
-                      } else {
-                        match = automations.find((a: any) => a.trigger_type === "postback" && a.trigger_value === triggerValue)
-                        // Quick reply payloads can also match keyword rules
-                        if (!match) {
-                          match = dmAutomations.find(
-                            (a: any) => a.trigger_type === "keyword" && keywordMatches(a.trigger_value, triggerValue.toLowerCase()),
-                          )
-                        }
-                      }
-                    } else {
-                      match = dmAutomations.find(
-                        (a: any) => a.trigger_type === "keyword" && keywordMatches(a.trigger_value, triggerValue),
-                      )
-                    }
+          // Check if sender has an active pending gate waiting for follow confirmation
+          const pendingRuleId = (triggerType === "keyword" && !isUnlockEvent) ? await getPendingGate(senderId) : null
+
+          // Matches common variations: "i followed", "i followed you", "done", "following", "i have followed", "already followed", etc.
+          const unlockRegex = /^\s*(i('?ve| have)?\s*follow(ed)?(\s*you)?|followed(\s*you)?|done|following|tap\s*done|already\s*followed|just\s*followed)\s*[\.!\?✅]*\s*$/i
+          const isTextUnlock =
+            !isUnlockEvent &&
+            triggerType === "keyword" &&
+            (unlockRegex.test(triggerValue) || (Boolean(pendingRuleId) && /\b(follow(ed|ing)?|done|unlock)\b/i.test(triggerValue)))
+
+          if (isTextUnlock) {
+            if (pendingRuleId) {
+              match = automations.find((a: any) => a.id === pendingRuleId) || null
+            }
+            if (!match) {
+              // Fallback: match most recent gated comment automation, else any gated
+              const gated = automations.filter((a: any) => {
+                const c = parseContent(a.response_content)
+                return c?.check_follow === true || c?.check_follow === "true"
+              })
+              match = gated.find((a: any) => a.trigger_source === "comment") || gated[0] || null
+            }
+            if (!match) {
+              // Extra fallback: grab most recent active comment automation or any active automation
+              match = automations.find((a: any) => a.trigger_source === "comment" && a.is_active !== false) || automations[0] || null
+            }
+            console.log(`[webhook] 🔓 Text unlock event from @${senderId}: "${triggerValue}" -> matched rule "${match?.name || "none"}" (id: ${match?.id || "none"})`)
+          }
+
+          if (triggerType === "postback") {
+            if (isUnlockEvent) {
+              const ruleId = triggerValue.replace("UNLOCK_CONTENT_", "")
+              match = automations.find((a: any) => a.id === ruleId)
+            } else if (triggerValue.startsWith("ICE_BREAKER_")) {
+              const iceBreakerId = triggerValue.replace("ICE_BREAKER_", "")
+              const { data: ib } = await supabase
+                .from("ice_breakers")
+                .select("*")
+                .eq("id", iceBreakerId)
+                .eq("user_id", user.id)
+                .single()
+              if (ib) {
+                match = { name: "Ice Breaker: " + ib.question, response_content: { message: ib.response } }
+              }
+            } else {
+              match = automations.find((a: any) => a.trigger_type === "postback" && a.trigger_value === triggerValue)
+              // Quick reply payloads can also match keyword rules
+              if (!match) {
+                match = dmAutomations.find(
+                  (a: any) => a.trigger_type === "keyword" && keywordMatches(a.trigger_value, triggerValue.toLowerCase()),
+                )
+              }
+            }
+          } else if (!isTextUnlock) {
+            // Standard keyword match for normal DMs (do NOT overwrite match if this was a text unlock)
+            match = dmAutomations.find(
+              (a: any) => a.trigger_type === "keyword" && keywordMatches(a.trigger_value, triggerValue),
+            )
+          }
 
                     if (!match) {
                       // AI fallback: if no keyword rule matched, try AI auto-reply
@@ -701,7 +731,7 @@ export async function POST(request: NextRequest) {
                     // ---------- Follow gate for DMs ----------
                     const attemptKey = unlockKey(senderId, match.id)
 
-                    if (content.check_follow === true) {
+                    if (content.check_follow === true || content.check_follow === "true" || isUnlockEvent || isTextUnlock) {
                       if (isUnlockEvent || isTextUnlock) {
                         // Explicit unlock path: user tapped "I Followed!" or replied "I followed"
                         const followResult = await verifyFollowStatus(senderId, user.access_token)
