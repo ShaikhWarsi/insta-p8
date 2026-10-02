@@ -401,14 +401,14 @@ export async function POST(request: NextRequest) {
                             r = await sendTextDM(
                               user.access_token,
                               { comment_id: commentId },
-                              `Almost there! ✨ Just follow @${user.username} https://instagram.com/${user.username} and reply here with "I followed" — I'll send it instantly!`,
+                              `Hey! 👋 You don't follow @${user.username} yet. Please follow first and reply here with "I followed" — I'll send it right over! ✨`,
                             )
                             if (!r?.ok && r?.error?.error_subcode === 2534025) {
                               // comment_id invalid for private reply (nested / already replied) -> try DM via {id}
                               r = await sendTextDM(
                                 user.access_token,
                                 { id: senderId },
-                                `Almost there! ✨ Just follow @${user.username} https://instagram.com/${user.username} and reply "I followed" here — I'll send it instantly!`,
+                                `Hey! 👋 You don't follow @${user.username} yet. Please follow first and reply with "I followed" — I'll send it right over! ✨`,
                               )
                             }
                             if (r?.ok) {
@@ -529,7 +529,7 @@ export async function POST(request: NextRequest) {
                                                 await sendTextDM(
                                                   user.access_token,
                                                   { id: senderId },
-                                                  `Almost there! ✨ Just follow @${user.username} https://instagram.com/${user.username} and reply "I followed" — I'll send it instantly!`,
+                                                  `Hey! 👋 You don't follow @${user.username} yet. Please follow first and reply with "I followed" — I'll send it right over! ✨`,
                                                 )
                                               } else {
                                                 // Transient failure — fail OPEN: deliver content
@@ -773,7 +773,7 @@ export async function POST(request: NextRequest) {
                             result = await sendTextDM(
                               user.access_token,
                               { id: senderId },
-                              `❌ Not Following Yet!\n\nWe couldn't verify your follow. Please follow @${user.username} (https://instagram.com/${user.username}) and reply "I followed" once you've followed!`,
+                              `❌ Not Following Yet!\n\nWe couldn't verify your follow. You don't follow @${user.username} yet. Please follow first and reply with "I followed" once done — I'll send it right over! ✨`,
                             )
                           }
                           if (result?.ok && conv) {
@@ -856,7 +856,7 @@ export async function POST(request: NextRequest) {
                                 result = await sendTextDM(
                                   user.access_token,
                                   { id: senderId },
-                                  `Almost there! ✨ Please follow @${user.username} and reply "I followed" to unlock!`,
+                                  `Almost there! ✨ Please follow @${user.username} first and reply with "I followed" to unlock!`,
                                 )
                               }
                               if (result?.ok && conv) {
@@ -913,7 +913,7 @@ export async function POST(request: NextRequest) {
                             result = await sendTextDM(
                               user.access_token,
                               { id: senderId },
-                              `Almost there! ✨ Just follow @${user.username} https://instagram.com/${user.username} and reply "I followed" — I'll send it instantly!`,
+                              `Hey! 👋 You don't follow @${user.username} yet. Please follow first and reply with "I followed" — I'll send it right over! ✨`,
                             )
                           }
                           if (result?.ok && conv) {
