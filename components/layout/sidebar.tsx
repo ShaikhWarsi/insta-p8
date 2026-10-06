@@ -1,127 +1,78 @@
 "use client"
 
 import type React from "react"
-import { cn } from "@/lib/utils"
-import {
-  Zap, LayoutDashboard, LogOut, Settings, BarChart3,
-  MessageSquare, Snowflake, Send,
-} from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { ChevronLeft, ChevronRight, LifeBuoy, LogOut, Zap } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 const NAV = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Overview" },
-  { href: "/dashboard/automations", icon: Zap, label: "Automations" },
-  { href: "/dashboard/inbox", icon: MessageSquare, label: "Inbox" },
-  { href: "/dashboard/ice-breakers", icon: Snowflake, label: "Ice breakers" },
-  { href: "/dashboard/analytics", icon: BarChart3, label: "Analytics" },
+  { href: "/dashboard", label: "Home", icon: "/icons/home.svg" },
+  { href: "/dashboard/automations", label: "Auto replies", icon: "/icons/journal.svg" },
+  { href: "/dashboard/inbox", label: "Conversations", icon: "/icons/chat.svg" },
+  { href: "/dashboard/ice-breakers", label: "Conversation starters", icon: "/icons/squads.svg" },
+  { href: "/dashboard/analytics", label: "Insights", icon: "/icons/analytics.svg" },
 ]
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   username?: string
   profilePic?: string | null
-  className?: string
   onLogout?: () => void
   onNavigate?: () => void
+  collapsed?: boolean
+  onToggle?: () => void
 }
 
-export function Sidebar({ className, username = "creator", profilePic, onLogout, onNavigate, ...props }: SidebarProps) {
+export function Sidebar({ className, username = "creator", profilePic, onLogout, onNavigate, collapsed = false, onToggle, ...props }: SidebarProps) {
   const pathname = usePathname()
 
+  const itemClass = (active: boolean) => cn(
+    "relative flex h-10 items-center rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+    collapsed ? "justify-center px-0" : "gap-3 px-3",
+    active ? "bg-sidebar-accent text-sidebar-foreground" : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
+  )
+
   return (
-    <aside className={cn("flex flex-col bg-sidebar text-sidebar-foreground", className)} {...props}>
-      {/* Brand + Theme Toggle */}
-            <div className="px-5 pt-6 pb-5 flex items-center gap-2.5">
-              <div className="w-7 h-7 bg-accent-yellow text-accent-yellow-foreground rounded-md flex items-center justify-center shrink-0">
-                <Zap className="w-3.5 h-3.5" strokeWidth={2.5} />
-              </div>
-              <span className="font-mono-ui text-sm font-bold tracking-tight text-sidebar-foreground flex-1">insta-p8</span>
-              <ThemeToggle />
-            </div>
+    <aside className={cn("flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground", className)} {...props}>
+      <div className={cn("flex h-16 items-center border-b border-sidebar-border", collapsed ? "justify-center" : "px-3")}>
+        <Link href="/dashboard" onClick={onNavigate} aria-label="insta-p8 home" className={cn("flex items-center gap-2.5 rounded-lg", !collapsed && "px-2")}>
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"><Zap className="size-4" /></span>
+          {!collapsed && <span className="text-sm font-semibold tracking-tight">insta-p8</span>}
+        </Link>
+        {!collapsed && onToggle && <button onClick={onToggle} aria-label="Collapse sidebar" title="Collapse sidebar" className="ml-auto flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"><ChevronLeft className="size-4" /></button>}
+      </div>
 
-            <div className="mx-5 h-px bg-sidebar-border" />
+      {collapsed && onToggle && <div className="px-3 pt-3"><button onClick={onToggle} aria-label="Expand sidebar" title="Expand sidebar" className="flex size-10 w-full items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"><ChevronRight className="size-4" /></button></div>}
 
-      {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {NAV.map(({ href, icon: Icon, label }) => {
-          const active = pathname === href
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={onNavigate}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md text-[13px] transition-colors relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-                active
-                  ? "text-sidebar-foreground bg-sidebar-accent font-medium"
-                  : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/60",
-              )}
-            >
-              {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full bg-accent-yellow" />}
-              <Icon className={cn("w-4 h-4 shrink-0", active ? "text-accent-yellow" : "")} strokeWidth={active ? 2.2 : 1.8} />
-              <span>{label}</span>
-            </Link>
-          )
+      <nav className="flex-1 space-y-1 px-3 py-3" aria-label="Dashboard navigation">
+        {NAV.map(item => {
+          const active = pathname === item.href
+          return <Link key={item.href} href={item.href} onClick={onNavigate} aria-current={active ? "page" : undefined} aria-label={collapsed ? item.label : undefined} title={collapsed ? item.label : undefined} className={itemClass(active)}>
+            <img src={item.icon} alt="" className={cn("size-4 shrink-0 dark:invert", active && item.href === "/dashboard" && "dark:invert-0")} />
+            {!collapsed && <span className="truncate">{item.label}</span>}
+          </Link>
         })}
 
-        <div className="pt-5 pb-1 px-3">
-          <div className="h-px bg-sidebar-border" />
-        </div>
+        <div className="my-3 h-px bg-sidebar-border" />
 
-        <Link
-          href="/dashboard/settings"
-          onClick={onNavigate}
-          aria-current={pathname === "/dashboard/settings" ? "page" : undefined}
-          className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-md text-[13px] transition-colors relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-            pathname === "/dashboard/settings"
-              ? "text-sidebar-foreground bg-sidebar-accent font-medium"
-              : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/60",
-          )}
-        >
-          {pathname === "/dashboard/settings" && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full bg-accent-yellow" />}
-          <Settings className="w-4 h-4 shrink-0" strokeWidth={1.8} />
-          <span>Settings</span>
+        <Link href="/dashboard/settings" onClick={onNavigate} aria-current={pathname === "/dashboard/settings" ? "page" : undefined} aria-label={collapsed ? "Preferences" : undefined} title={collapsed ? "Preferences" : undefined} className={itemClass(pathname === "/dashboard/settings")}>
+          <img src="/icons/profile.svg" alt="" className="size-4 shrink-0 dark:invert" />
+          {!collapsed && <span>Preferences</span>}
         </Link>
-
-        <a
-          href="https://t.me/instagramautomationp8"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 px-3 py-2 rounded-md text-[13px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-        >
-          <Send className="w-4 h-4 shrink-0" strokeWidth={1.8} />
-          <span>Get help</span>
+        <a href="https://t.me/instagramautomationp8" target="_blank" rel="noopener noreferrer" aria-label={collapsed ? "Help and support" : undefined} title={collapsed ? "Help and support" : undefined} className={itemClass(false)}>
+          <LifeBuoy className="size-4 shrink-0" />
+          {!collapsed && <span>Help and support</span>}
         </a>
       </nav>
 
-      {/* Account */}
-      <div className="px-3 pb-4">
-        <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-sidebar-border group">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-500 p-[1.5px] shrink-0">
-            <div className="w-full h-full rounded-full bg-sidebar flex items-center justify-center overflow-hidden">
-              {profilePic ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={profilePic} alt={username} className="w-full h-full rounded-full object-cover" />
-              ) : (
-                <span className="text-[10px] font-bold text-sidebar-foreground">{username.charAt(0).toUpperCase()}</span>
-              )}
-            </div>
+      <div className="border-t border-sidebar-border p-3">
+        {!collapsed && <div className="mb-3 flex items-center justify-between px-1"><span className="text-xs text-muted-foreground">Appearance</span><ThemeToggle className="h-7 w-14" /></div>}
+        <div className={cn("flex items-center rounded-lg bg-sidebar-accent p-2", collapsed ? "justify-center" : "gap-2.5")}>
+          <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
+            {profilePic ? <img src={profilePic} alt={username} className="size-full object-cover" /> : username.charAt(0).toUpperCase()}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-sidebar-foreground truncate">@{username}</p>
-            <p className="font-mono-ui text-[9px] uppercase tracking-wider text-sidebar-foreground/60">connected</p>
-          </div>
-          <button
-            onClick={onLogout}
-            title="Log out"
-            aria-label="Log out"
-            className="p-1.5 rounded-md text-sidebar-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-          </button>
+          {!collapsed && <><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">@{username}</p><p className="mt-0.5 text-[11px] text-muted-foreground">Instagram connected</p></div><button onClick={onLogout} aria-label="Log out" title="Log out" className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar hover:text-destructive"><LogOut className="size-4" /></button></>}
         </div>
       </div>
     </aside>

@@ -71,7 +71,7 @@ export function AutomationList({ automations, onDelete, onEdit, onChanged, userI
 
   if (automations.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-border bg-card/40 p-12 text-center">
+        <div className="rounded-xl border border-border bg-card p-12 text-center">
         <div className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center border border-border bg-muted">
           <Zap className="w-7 h-7 text-muted-foreground" />
         </div>
@@ -149,7 +149,7 @@ function RuleCard({ rule, onDelete, onEdit, onToggle, onDuplicate, index, isSpec
     <div
       className={`group p-4 rounded-xl border transition-all duration-200 ${
         isPaused
-          ? "border-border bg-card/40 opacity-70"
+          ? "border-border bg-muted opacity-70"
           : "border-border bg-card hover:bg-accent hover:border-foreground/20"
       }`}
       style={{ animationDelay: `${index * 60}ms` }}
@@ -283,7 +283,7 @@ function RuleCard({ rule, onDelete, onEdit, onToggle, onDuplicate, index, isSpec
               </Badge>
             )}
             {content.check_follow && (
-              <Badge variant="secondary" className="bg-accent-yellow/10 text-accent-yellow-foreground dark:text-accent-yellow border border-accent-yellow/30 text-[10px] px-1.5 py-0">
+                <Badge variant="secondary" className="bg-secondary text-secondary-foreground border border-border text-[10px] px-1.5 py-0">
                 <Lock className="w-2.5 h-2.5 mr-0.5" /> Follow
               </Badge>
             )}

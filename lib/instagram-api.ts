@@ -29,13 +29,14 @@ async function post(path: string, token: string, body: any): Promise<SendResult>
   try {
     const res = await fetch(`${GRAPH}/${path}?access_token=${encodeURIComponent(token)}`, {
       method: "POST",
+      signal: AbortSignal.timeout(15000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     })
     const json = await res.json()
-    if (json.error) {
+    if (!res.ok || json.error) {
       console.error(`[ig-api] ${path} failed:`, JSON.stringify(json.error))
-      return { ok: false, error: json.error }
+      return { ok: false, error: json.error || `HTTP ${res.status}` }
     }
     return { ok: true, id: json.id || json.message_id }
   } catch (e) {
@@ -150,9 +151,9 @@ export async function replyToComment(token: string, commentId: string, message: 
 
 export async function fetchProfile(token: string, igUserId: string): Promise<{ username?: string; name?: string } | null> {
   try {
-    const res = await fetch(`${GRAPH}/${igUserId}?fields=username,name&access_token=${encodeURIComponent(token)}`)
+    const res = await fetch(`${GRAPH}/${igUserId}?fields=username,name&access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(5000) })
     const json = await res.json()
-    if (json.error) return null
+    if (!res.ok || json.error) return null
     return json
   } catch {
     return null
@@ -161,7 +162,7 @@ export async function fetchProfile(token: string, igUserId: string): Promise<{ u
 
 export async function verifyIdOwnership(token: string, id: string): Promise<boolean> {
   try {
-    const res = await fetch(`${GRAPH}/${id}?fields=id&access_token=${encodeURIComponent(token)}`)
+    const res = await fetch(`${GRAPH}/${id}?fields=id&access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(5000) })
     return res.ok
   } catch {
     return false

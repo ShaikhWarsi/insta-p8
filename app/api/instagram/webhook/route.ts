@@ -573,7 +573,9 @@ export async function POST(request: NextRequest) {
 
           console.log(`[webhook] 📩 DM from ${senderId}: "${triggerValue}"`)
 
-          // ---------- Persist conversation + incoming message ----------
+          // Inbox bookkeeping runs alongside delivery, not ahead of it. Always
+          // joined below so serverless shutdown cannot discard pending writes.
+          const incomingSaved = (async () => {
           let conv = null
           try {
             const { data: existing } = await supabase
@@ -621,7 +623,10 @@ export async function POST(request: NextRequest) {
           } catch (err) {
             console.error("[webhook] Failed to save incoming message", err)
           }
+          return conv
+          })()
 
+          try {
           // ---------- Match automation ----------
           const dmAutomations = automations.filter((a: any) => a.trigger_source === "dm" || !a.trigger_source)
           let match = null
@@ -693,10 +698,22 @@ export async function POST(request: NextRequest) {
                       if (user.groq_auto_reply_enabled && triggerType !== "postback") {
                         console.log(`[webhook] 🤖 No rule match — trying AI auto-reply for DM from ${senderId}`)
                         await sendSenderAction(user.access_token, senderId, "mark_seen")
-                        const aiReply = await generateAIReply(triggerValue, user.ai_context || "", user.groq_api_key, user.ai_base_url, user.ai_model)
+                        const conv = await incomingSaved // AI needs history; keyword replies do not.
+                        const { data: recentMessages } = conv
+                          ? await supabase
+                              .from("messages")
+                              .select("content, is_from_instagram")
+                              .eq("conversation_id", conv.id)
+                              .order("created_at", { ascending: false })
+                              .limit(10)
+                          : { data: [] }
+                        const history = (recentMessages || []).reverse().map((message: any) => ({
+                          role: message.is_from_instagram ? "user" as const : "assistant" as const,
+                          content: message.content,
+                        }))
+                        const aiReply = await generateAIReply(triggerValue, user.ai_context || "", history, user.groq_api_key, user.ai_base_url, user.ai_model)
                         if (aiReply) {
                           await sendSenderAction(user.access_token, senderId, "typing_on")
-                          await sleep(1200)
                           const result = await sendTextDM(user.access_token, { id: senderId }, aiReply)
                           if (result?.ok && conv) {
                             try {
@@ -741,6 +758,7 @@ export async function POST(request: NextRequest) {
                           await clearPendingGate(senderId)
                           console.log(`[webhook] ✅ DM unlock verified for @${senderId}`)
                           const result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
+                          const conv = await incomingSaved
                           if (result?.ok && conv) {
                             try {
                               await supabase.from("messages").insert({
@@ -776,6 +794,7 @@ export async function POST(request: NextRequest) {
                               `Almost there! ✨ We couldn't verify your follow yet. Just make sure to follow first and reply with "I followed" — I'll send it right over!`,
                             )
                           }
+                          const conv = await incomingSaved
                           if (result?.ok && conv) {
                             try {
                               await supabase.from("messages").insert({
@@ -800,6 +819,7 @@ export async function POST(request: NextRequest) {
                             await clearPendingGate(senderId)
                             console.warn(`[webhook] ⚠️ DM unlock auth unverifiable for @${senderId} (code 230) — trusting user and delivering content`)
                             const result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
+                            const conv = await incomingSaved
                             if (result?.ok && conv) {
                               try {
                                 await supabase.from("messages").insert({
@@ -826,6 +846,7 @@ export async function POST(request: NextRequest) {
                                 { id: senderId },
                                 "⚠️ We couldn't verify your follow due to a temporary network issue. Please reach out if this keeps happening.",
                               )
+                              const conv = await incomingSaved
                               if (result?.ok && conv) {
                                 try {
                                   await supabase.from("messages").insert({
@@ -859,6 +880,7 @@ export async function POST(request: NextRequest) {
                                   `Almost there! ✨ Just make sure to follow first and reply with "I followed" to unlock!`,
                                 )
                               }
+                              const conv = await incomingSaved
                               if (result?.ok && conv) {
                                 try {
                                   await supabase.from("messages").insert({
@@ -885,6 +907,7 @@ export async function POST(request: NextRequest) {
                           await clearUnlockAttempts(attemptKey)
                           console.log(`[webhook] ✅ DM follower gate: @${senderId} follows @${user.username} — sending content`)
                           const result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
+                          const conv = await incomingSaved
                           if (result?.ok && conv) {
                             try {
                               await supabase.from("messages").insert({
@@ -916,6 +939,7 @@ export async function POST(request: NextRequest) {
                               `Almost there! ✨ Just make sure to follow first and reply with "I followed" — I'll send it right over!`,
                             )
                           }
+                          const conv = await incomingSaved
                           if (result?.ok && conv) {
                             try {
                               await supabase.from("messages").insert({
@@ -935,6 +959,7 @@ export async function POST(request: NextRequest) {
                           // Transient failure — fail OPEN on initial trigger
                           console.warn(`[webhook] ⚠️ DM follower gate transient failure for @${senderId}; failing open on initial trigger`)
                           const result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
+                          const conv = await incomingSaved
                           if (result?.ok && conv) {
                             try {
                               await supabase.from("messages").insert({
@@ -951,10 +976,12 @@ export async function POST(request: NextRequest) {
                             }
                           }
                         }
+                        }
                       }
                     } else {
                       // No follower check required
                       const result = await sendAutomationResponse(user.access_token, { id: senderId }, content)
+                      const conv = await incomingSaved
                       if (result?.ok && conv) {
                         try {
                           await supabase.from("messages").insert({
@@ -971,6 +998,9 @@ export async function POST(request: NextRequest) {
                         }
                       }
                     }
+          } finally {
+            await incomingSaved
+          }
         }
       }
     }

@@ -13,6 +13,7 @@ function resolveEndpoint(userBaseUrl?: string | null): string {
 export async function generateAIReply(
   userMessage: string,
   aiContext: string,
+  conversationHistory: Array<{ role: "user" | "assistant"; content: string }> = [],
   userApiKey?: string | null,
   userBaseUrl?: string | null,
   userModel?: string | null,
@@ -33,11 +34,13 @@ export async function generateAIReply(
   try {
     const res = await fetch(endpoint, {
       method: "POST",
+      signal: AbortSignal.timeout(15000),
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model,
         messages: [
           { role: "system", content: systemPrompt },
+          ...conversationHistory.slice(-10),
           { role: "user", content: userMessage },
         ],
         max_tokens: 150,

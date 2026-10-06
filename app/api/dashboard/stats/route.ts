@@ -9,39 +9,50 @@ export async function GET(request: NextRequest) {
         const supabase = await getSupabaseServerClient()
 
         // 1. Total Automations
-        const { count: automationsCount } = await supabase
+        const automationsQuery = supabase
             .from("automations")
             .select("*", { count: "exact", head: true })
             .eq("user_id", userId)
 
         // 2. Active Triggers
-        const { count: activeTriggersCount } = await supabase
+        const activeQuery = supabase
             .from("automations")
             .select("*", { count: "exact", head: true })
             .eq("user_id", userId)
             .eq("is_active", true)
 
         // 3. Audience Reached (Total Conversations)
-        const { count: audienceCount } = await supabase
+        const audienceQuery = supabase
             .from("conversations")
             .select("*", { count: "exact", head: true })
             .eq("user_id", userId)
 
         // 4. Messages Sent (where is_from_instagram is false, implying bot/system sent it)
-        const { count: messagesSentCount } = await supabase
+        const sentQuery = supabase
             .from("messages")
             .select("*", { count: "exact", head: true })
             .eq("user_id", userId)
             .eq("is_from_instagram", false)
 
         // 5. Recent Activity (Last 5 messages sent by bot)
-        const { data: recentMessages } = await supabase
+        const recentQuery = supabase
             .from("messages")
             .select("id, content, created_at, sender_username, conversation_id, recipient:conversations(recipient_username)")
             .eq("user_id", userId)
             .eq("is_from_instagram", false)
             .order("created_at", { ascending: false })
             .limit(5)
+
+        const results = await Promise.all([automationsQuery, activeQuery, audienceQuery, sentQuery, recentQuery])
+        const failed = results.find(result => result.error)
+        if (failed?.error) throw failed.error
+        const [
+            { count: automationsCount },
+            { count: activeTriggersCount },
+            { count: audienceCount },
+            { count: messagesSentCount },
+            { data: recentMessages },
+        ] = results
 
         return NextResponse.json({
             metrics: {

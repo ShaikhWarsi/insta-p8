@@ -1,16 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
 
 /* ============================================================
    Light theme (default). WCAG AA targets ≥4.5:1 for body text.
    Palette: warm cream surface + obsidian ink + crimson accent + yellow.
    ============================================================ */
 :root {
-  --background: oklch(0.985 0.005 90);          /* #faf8f5 warm cream */
-  --foreground: oklch(0.18 0.01 280);           /* #1a1a24 obsidian ink */
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.145 0 0);
 
   --card: oklch(1 0 0);                          /* pure white cards */
   --card-foreground: oklch(0.18 0.01 280);
@@ -18,16 +23,16 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.01 280);
 
-  --primary: oklch(0.18 0.01 280);                /* obsidian buttons */
+  --primary: oklch(0.18 0 0);
   --primary-foreground: oklch(0.985 0.005 90);
 
-  --secondary: oklch(0.94 0.01 90);               /* soft cream chips */
+  --secondary: oklch(0.955 0 0);
   --secondary-foreground: oklch(0.25 0.01 280);
 
-  --muted: oklch(0.95 0.008 90);
-  --muted-foreground: oklch(0.45 0.01 280);      /* 5.2:1 on background */
+  --muted: oklch(0.955 0 0);
+  --muted-foreground: oklch(0.46 0 0);
 
-  --accent: oklch(0.93 0.01 90);
+  --accent: oklch(0.93 0 0);
   --accent-foreground: oklch(0.18 0.01 280);
 
   --destructive: oklch(0.52 0.22 27);             /* crimson — 4.6:1 on bg */
@@ -39,9 +44,9 @@
   --warning: oklch(0.78 0.16 88);                 /* amber */
   --warning-foreground: oklch(0.18 0.01 280);
 
-  --border: oklch(0.88 0.01 90);                  /* visible hairline */
-  --input: oklch(0.88 0.01 90);
-  --ring: oklch(0.55 0.18 88);                    /* yellow focus ring */
+  --border: oklch(0.88 0 0);
+  --input: oklch(0.88 0 0);
+  --ring: oklch(0.35 0 0);
 
   /* Brand accents — tuned for legibility, not just punch.
      accent-yellow drops chroma from 0.18 to 0.12 (less neon) and
@@ -49,24 +54,24 @@
      burn the eye on small text / badges in light mode. Dark mode
      keeps the punchier values since the eye expects more saturation
      against a dark surface. */
-    --accent-yellow: oklch(0.72 0.12 88);           /* soft amber — readable on cream */
-    --accent-yellow-foreground: oklch(0.18 0.01 280);
-    --accent-yellow-soft: oklch(0.94 0.06 88);       /* for tinted backgrounds */
+    --accent-yellow: oklch(0.22 0 0);
+    --accent-yellow-foreground: oklch(0.18 0 0);
+    --accent-yellow-soft: oklch(0.94 0 0);
     --accent-blue: oklch(0.55 0.18 255);            /* 4.6:1 on bg */
     --accent-blue-foreground: oklch(0.985 0.005 90);
     --accent-pink: oklch(0.55 0.22 0);              /* 4.6:1 on bg */
     --accent-pink-foreground: oklch(0.985 0.005 90);
 
-  --radius: 0.5rem;
+  --radius: 0.75rem;
 
-  --sidebar: oklch(0.97 0.006 90);
-  --sidebar-foreground: oklch(0.25 0.01 280);
-  --sidebar-primary: oklch(0.18 0.01 280);
+  --sidebar: oklch(0.965 0 0);
+  --sidebar-foreground: oklch(0.2 0 0);
+  --sidebar-primary: oklch(0.18 0 0);
   --sidebar-primary-foreground: oklch(0.985 0.005 90);
-  --sidebar-accent: oklch(0.93 0.01 90);
+  --sidebar-accent: oklch(0.9 0 0);
   --sidebar-accent-foreground: oklch(0.18 0.01 280);
-  --sidebar-border: oklch(0.88 0.01 90);
-  --sidebar-ring: oklch(0.55 0.18 88);
+  --sidebar-border: oklch(0.86 0 0);
+  --sidebar-ring: oklch(0.35 0 0);
 }
 
 /* ============================================================
@@ -107,7 +112,7 @@
   --input: oklch(0.28 0.006 280);
   --ring: oklch(0.82 0.18 95);
 
-  --accent-yellow: oklch(0.85 0.18 95);              /* punchy yellow for dark — eye expects saturation here */
+  --accent-yellow: oklch(0.9 0 0);
     --accent-yellow-foreground: oklch(0.13 0.005 280);
     --accent-blue: oklch(0.7 0.17 255);              /* ≥4.5:1 on dark bg */
     --accent-blue-foreground: oklch(0.13 0.005 280);
@@ -125,8 +130,8 @@
 }
 
 @theme inline {
-  --font-sans: "Geist", "Geist Fallback";
-  --font-serif: "Crimson Pro", serif;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -177,8 +182,10 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
+body {
     @apply bg-background text-foreground antialiased;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
 
@@ -217,8 +224,37 @@
 
 /* Editorial type utilities (shared across app) */
 .font-serif-display {
-  font-family: 'Instrument Serif', Georgia, serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-weight: 650;
+  letter-spacing: -0.035em;
 }
 .font-mono-ui {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.dashboard-canvas {
+  background-color: var(--background);
+  background-image: none;
+}
+
+.dashboard-canvas [class*="backdrop-"] {
+  backdrop-filter: none !important;
+}
+
+.dashboard-canvas [class*="bg-card/"],
+.dashboard-canvas [class*="bg-white/"] {
+  background-color: var(--card) !important;
+}
+
+.dashboard-canvas [class*="bg-muted/"] {
+  background-color: var(--muted) !important;
+}
+
+.dashboard-canvas [class*="bg-accent-yellow/"] {
+  background-color: var(--accent) !important;
+}
+
+.dashboard-canvas [class*="bg-black/"] {
+  background-color: #0a0a0a !important;
 }

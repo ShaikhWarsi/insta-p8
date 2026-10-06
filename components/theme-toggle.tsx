@@ -1,6 +1,7 @@
 "use client"
 
 import { Moon, Sun } from "lucide-react"
+import { flushSync } from "react-dom"
 import { useTheme } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
 
@@ -17,10 +18,50 @@ export function ThemeToggle({ className }: { className?: string }) {
   const { resolvedTheme, toggle } = useTheme()
   const isDark = resolvedTheme === "dark"
 
+  const handleToggle = (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      toggle()
+      return
+    }
+
+    const x = event.clientX
+    const y = event.clientY
+    const radius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
+    const circle = document.createElement("span")
+    const size = 20
+
+    Object.assign(circle.style, {
+      position: "fixed",
+      left: `${x - size / 2}px`,
+      top: `${y - size / 2}px`,
+      width: `${size}px`,
+      height: `${size}px`,
+      borderRadius: "9999px",
+      background: isDark ? "#fafafa" : "#090909",
+      pointerEvents: "none",
+      zIndex: "2147483647",
+      transform: "scale(0)",
+    })
+    document.body.appendChild(circle)
+
+    const animation = circle.animate(
+      [{ transform: "scale(0)" }, { transform: `scale(${(radius * 2) / size})` }],
+      { duration: 480, easing: "cubic-bezier(.4, 0, .2, 1)", fill: "forwards" },
+    )
+
+    animation.finished.then(() => {
+      flushSync(() => toggle())
+      circle.remove()
+    }).catch(() => {
+      toggle()
+      circle.remove()
+    })
+  }
+
   return (
     <button
       type="button"
-      onClick={toggle}
+      onClick={handleToggle}
       role="switch"
       aria-checked={isDark}
       aria-label={`Switch to ${isDark ? "light" : "dark"} theme`}

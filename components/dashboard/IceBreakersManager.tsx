@@ -88,7 +88,7 @@ export function IceBreakersManager() {
         if (!userId) {
             return (
                 <div className="space-y-6 max-w-2xl mx-auto">
-                    <div className="text-center py-10 border border-dashed border-border rounded-xl text-muted-foreground bg-card/40">
+                    <div className="text-center py-10 border border-border rounded-xl text-muted-foreground bg-card">
                         <p className="text-sm font-medium">Not connected</p>
                         <p className="text-xs mt-1">Connect your Instagram account to manage Ice Breakers.</p>
                     </div>
@@ -105,10 +105,10 @@ export function IceBreakersManager() {
         }
 
     return (
-        <div className="space-y-6 max-w-2xl mx-auto">
+        <div className="space-y-6 max-w-4xl mx-auto">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="font-serif-display text-3xl text-foreground">Ice Breakers</h2>
+                    <h2 className="text-3xl font-semibold tracking-[-0.03em] text-foreground">Conversation starters</h2>
                     <p className="text-muted-foreground text-sm">
                         Questions people see when they start a chat with you.
                     </p>
@@ -163,7 +163,7 @@ export function IceBreakersManager() {
                 ))}
 
                 {breakers.length === 0 && (
-                    <div className="text-center py-10 border border-dashed border-border rounded-xl text-muted-foreground bg-card/40">
+                    <div className="text-center py-10 border border-border rounded-xl text-muted-foreground bg-card">
                         No ice breakers yet. Add one to get started!
                     </div>
                 )}
@@ -172,7 +172,7 @@ export function IceBreakersManager() {
                     <Button
                         variant="outline"
                         onClick={handleAdd}
-                        className="w-full border-dashed border-border hover:bg-accent text-muted-foreground hover:text-foreground"
+                        className="w-full border-border bg-card hover:bg-accent text-muted-foreground hover:text-foreground"
                     >
                         <Plus className="w-4 h-4 mr-2" /> Add Question
                     </Button>

@@ -102,7 +102,7 @@ export function ChatWindow({ conversationId, recipientId, recipientName, userId,
                     <Send className="w-6 h-6 text-muted-foreground" />
                 </div>
                 <div>
-                    <h3 className="text-lg font-bold text-foreground">Your Messages</h3>
+                    <h3 className="text-lg font-semibold text-foreground">Your conversations</h3>
                     <p className="text-muted-foreground text-sm max-w-xs mx-auto mt-2">
                         Select a conversation from the left to start chatting live with your audience.
                     </p>
@@ -114,7 +114,7 @@ export function ChatWindow({ conversationId, recipientId, recipientName, userId,
     return (
         <div className="flex-1 flex flex-col h-full bg-card relative">
             {/* Header */}
-            <div className="h-16 border-b border-border flex items-center justify-between px-4 md:px-6 bg-card/80 backdrop-blur-md shrink-0">
+            <div className="h-16 border-b border-border flex items-center justify-between px-4 md:px-6 bg-card shrink-0">
                 <div className="flex items-center gap-3">
                     {onBack && (
                         <Button variant="ghost" size="icon" onClick={onBack} className="md:hidden -ml-2 text-muted-foreground">
@@ -149,7 +149,7 @@ export function ChatWindow({ conversationId, recipientId, recipientName, userId,
                         return (
                             <div key={msg.id} className={cn("flex w-full", isMe ? "justify-end" : "justify-start")}>
                                 <div className={cn(
-                                    "max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-3 text-sm shadow-sm break-words",
+                                    "max-w-[85%] md:max-w-[70%] rounded-2xl px-4 py-3 text-sm break-words",
                                     isMe
                                         ? "bg-primary text-primary-foreground rounded-br-none"
                                         : "bg-muted text-foreground rounded-bl-none border border-border"
@@ -171,7 +171,7 @@ export function ChatWindow({ conversationId, recipientId, recipientName, userId,
 
             {/* Automation Popup */}
             {isAutomationOpen && (
-                <div className="absolute bottom-20 left-4 right-4 md:left-auto md:right-4 md:w-80 bg-popover border border-border rounded-xl shadow-2xl backdrop-blur-xl p-2 z-50">
+                <div className="absolute bottom-20 left-4 right-4 md:left-auto md:right-4 md:w-80 bg-popover border border-border rounded-xl shadow-lg p-2 z-50">
                     <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Quick Responses</div>
                     <div className="max-h-60 overflow-y-auto space-y-1">
                         {automations.map(auto => (
@@ -201,13 +201,13 @@ export function ChatWindow({ conversationId, recipientId, recipientName, userId,
                         aria-label="Toggle quick responses"
                         className={cn(
                             "h-9 w-9 hover:bg-accent text-muted-foreground hover:text-accent-yellow-foreground dark:hover:text-accent-yellow transition-colors shrink-0",
-                            isAutomationOpen && "text-accent-yellow-foreground dark:text-accent-yellow bg-accent-yellow/15"
+                            isAutomationOpen && "text-foreground bg-accent"
                         )}
                     >
                         <Zap className="w-5 h-5" />
                     </Button>
                     <input
-                        className="flex-1 bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none placeholder:text-muted-foreground min-w-0"
+                        className="flex-1 bg-muted px-3 py-2 text-sm text-foreground focus:outline-none placeholder:text-muted-foreground min-w-0"
                         placeholder="Type a message..."
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}

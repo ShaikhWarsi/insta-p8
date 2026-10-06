@@ -46,7 +46,7 @@ export function ConversationList({ userId, selectedId, onSelect }: ConversationL
     return (
         <div className="flex flex-col h-full border-r border-border bg-card w-full md:w-[350px]">
             <div className="p-4 border-b border-border">
-                <h2 className="text-lg font-bold text-foreground mb-4">Inbox</h2>
+                <h2 className="text-lg font-semibold text-foreground mb-4">Conversations</h2>
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <input
@@ -69,7 +69,7 @@ export function ConversationList({ userId, selectedId, onSelect }: ConversationL
                             className={cn(
                                 "p-3 rounded-lg flex items-center gap-3 cursor-pointer transition-colors border border-transparent",
                                 selectedId === conv.id
-                                    ? "bg-accent-yellow/15 border-accent-yellow/40"
+                                    ? "bg-accent border-border"
                                     : "hover:bg-accent hover:border-border"
                             )}
                         >

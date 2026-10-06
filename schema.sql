@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS public.users (
   page_id TEXT,
   groq_auto_reply_enabled BOOLEAN DEFAULT FALSE,
   ai_context TEXT DEFAULT NULL,
+  groq_api_key TEXT DEFAULT NULL,
+  ai_base_url TEXT DEFAULT NULL,
+  ai_model TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

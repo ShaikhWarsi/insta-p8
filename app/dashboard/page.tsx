@@ -1,158 +1,67 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card } from "@/components/ui/card"
+import Link from "next/link"
+import { ArrowRight, Bot, CheckCircle2, Loader2, MessageSquare, Plus, Users, Workflow } from "lucide-react"
 import { useInstagramSession } from "@/hooks/use-instagram-session"
-import { Activity, Users, MessageCircle, Zap, Loader2 } from "lucide-react"
 
 interface DashboardStats {
-    metrics: {
-        totalAutomations: number
-        activeTriggers: number
-        audienceReached: number
-        messagesSent: number
-    }
-    recentActivity: Array<{
-        id: string
-        content: string
-        created_at: string
-        recipient?: {
-            recipient_username: string
-        }
-    }>
+  metrics: { totalAutomations: number; activeTriggers: number; audienceReached: number; messagesSent: number }
+  recentActivity: Array<{ id: string; content: string; created_at: string; recipient?: { recipient_username: string } }>
 }
 
 export default function DashboardPage() {
-    const { username, userId, isLoading: isSessionLoading } = useInstagramSession()
-    const [stats, setStats] = useState<DashboardStats | null>(null)
-    const [loading, setLoading] = useState(true)
+  const { username, userId, isLoading: sessionLoading } = useInstagramSession()
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [loading, setLoading] = useState(true)
 
-    useEffect(() => {
-        if (!userId) return
+  useEffect(() => {
+    if (!userId) return
+    fetch(`/api/dashboard/stats?userId=${userId}`)
+      .then(response => response.json())
+      .then(data => { if (data && !data.error) setStats(data) })
+      .catch(error => console.error("Failed to load dashboard stats", error))
+      .finally(() => setLoading(false))
+  }, [userId])
 
-        const fetchStats = async () => {
-            try {
-                const res = await fetch(`/api/dashboard/stats?userId=${userId}`)
-                const data = await res.json()
-                if (data && !data.error) {
-                    setStats(data)
-                }
-            } catch (err) {
-                console.error("Failed to load dashboard stats", err)
-            } finally {
-                setLoading(false)
-            }
-        }
+  if (sessionLoading || loading) return <div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
 
-        fetchStats()
-    }, [userId])
+  const metrics = stats?.metrics
+  return (
+    <div className="mx-auto w-full max-w-[1440px] px-5 py-7 sm:px-8 lg:px-10">
+      <header className="flex flex-col justify-between gap-5 border-b border-border pb-7 sm:flex-row sm:items-end">
+        <div><p className="text-sm text-muted-foreground">Welcome back, {username || "creator"}</p><h1 className="mt-1 text-3xl font-semibold tracking-[-0.03em]">Your workspace</h1></div>
+        <Link href="/dashboard/automations" className="inline-flex h-10 w-fit items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"><Plus className="size-4" />Create workflow</Link>
+      </header>
 
-    if (isSessionLoading || loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[50vh]">
-                <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
-            </div>
-        )
-    }
+      <section className="grid border-b border-border sm:grid-cols-2 lg:grid-cols-4" aria-label="Account summary">
+        <Metric label="Workflows" value={metrics?.totalAutomations ?? 0} icon={Workflow} />
+        <Metric label="Active triggers" value={metrics?.activeTriggers ?? 0} icon={CheckCircle2} />
+        <Metric label="Messages sent" value={metrics?.messagesSent ?? 0} icon={MessageSquare} />
+        <Metric label="People reached" value={metrics?.audienceReached ?? 0} icon={Users} />
+      </section>
 
-    return (
-        <div className="p-8 space-y-8 animate-in fade-in duration-700">
-            {/* Welcome Section */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="font-mono-ui text-[10px] uppercase tracking-[0.3em] text-muted-foreground mb-2">Overview</p>
-                    <h1 className="font-serif-display text-4xl md:text-5xl text-foreground leading-none">Hey, {username}.</h1>
-                    <p className="text-muted-foreground text-sm mt-3">Here's what your automations did while you were away.</p>
-                </div>
-            </div>
+      <div className="grid gap-6 py-7 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.8fr)]">
+        <section className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="text-sm font-semibold">Recent conversations</h2><p className="mt-1 text-xs text-muted-foreground">Latest replies sent by your workflows</p></div><Link href="/dashboard/inbox" className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground">View all<ArrowRight className="size-3.5" /></Link></div>
+          <div className="divide-y divide-border">
+            {stats?.recentActivity?.length ? stats.recentActivity.slice(0, 6).map(message => <div key={message.id} className="flex items-center gap-3 px-5 py-4"><span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary"><MessageSquare className="size-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">@{message.recipient?.recipient_username || "instagram_user"}</p><p className="mt-1 truncate text-xs text-muted-foreground">{message.content}</p></div><time className="text-xs text-muted-foreground">{new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></div>) : <EmptyState icon={MessageSquare} title="No conversations yet" description="New automated replies will appear here." />}
+          </div>
+        </section>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard
-                    title="Total Automations"
-                    value={stats?.metrics.totalAutomations.toString() || "0"}
-                    trend="Active"
-                    icon={<Zap className="w-5 h-5 text-accent-yellow-foreground dark:text-accent-yellow" />}
-                />
-                <StatCard
-                    title="Messages Sent"
-                    value={stats?.metrics.messagesSent.toString() || "0"}
-                    trend="Lifetime"
-                    icon={<MessageCircle className="w-5 h-5 text-accent-yellow-foreground dark:text-accent-yellow" />}
-                />
-                <StatCard
-                    title="Active Triggers"
-                    value={stats?.metrics.activeTriggers.toString() || "0"}
-                    trend="Running"
-                    icon={<Activity className="w-5 h-5 text-accent-yellow-foreground dark:text-accent-yellow" />}
-                />
-                <StatCard
-                    title="Audience Reached"
-                    value={stats?.metrics.audienceReached.toString() || "0"}
-                    trend="Unique Users"
-                    icon={<Users className="w-5 h-5 text-accent-yellow-foreground dark:text-accent-yellow" />}
-                />
-            </div>
-
-            {/* Recent Activity */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <Card className="p-6 bg-card border-border">
-                    <h3 className="font-serif-display text-2xl text-foreground mb-5">Recent activity</h3>
-                    <div className="space-y-4">
-                        {stats?.recentActivity && stats.recentActivity.length > 0 ? (
-                            stats.recentActivity.map((msg) => (
-                                <div key={msg.id} className="flex items-center gap-4 p-3 rounded-lg hover:bg-accent transition-colors">
-                                    <div className="w-10 h-10 rounded-full bg-accent-yellow/15 flex items-center justify-center text-accent-yellow-foreground dark:text-accent-yellow shrink-0">
-                                        <MessageCircle className="w-5 h-5" />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="text-sm text-foreground font-medium truncate">
-                                            Auto-reply to @{msg.recipient?.recipient_username || "user"}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground truncate w-full max-w-[300px]">{msg.content}</p>
-                                    </div>
-                                    <div className="ml-auto text-[10px] text-muted-foreground whitespace-nowrap">
-                                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="py-8 text-center text-muted-foreground text-sm">
-                                No recent activity found.
-                            </div>
-                        )}
-                    </div>
-                </Card>
-
-                <Card className="p-6 bg-card border-border">
-                    <h3 className="font-serif-display text-2xl text-foreground mb-5">Quick actions</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="h-24 rounded-xl border border-dashed border-border flex flex-col items-center justify-center hover:bg-accent hover:border-accent-yellow cursor-pointer transition-colors group">
-                            <Zap className="w-6 h-6 text-muted-foreground group-hover:text-accent-yellow-foreground dark:group-hover:text-accent-yellow mb-2 transition-colors" />
-                            <span className="text-xs font-medium text-foreground">New Rule</span>
-                        </div>
-                        <div className="h-24 rounded-xl border border-dashed border-border flex flex-col items-center justify-center hover:bg-accent hover:border-accent-yellow cursor-pointer transition-colors group">
-                            <Users className="w-6 h-6 text-muted-foreground group-hover:text-accent-yellow-foreground dark:group-hover:text-accent-yellow mb-2 transition-colors" />
-                            <span className="text-xs font-medium text-foreground">View Audience</span>
-                        </div>
-                    </div>
-                </Card>
-            </div>
-        </div>
-    )
+        <aside className="space-y-6">
+          <section className="rounded-xl border border-border bg-card p-5"><div className="flex items-center gap-3"><span className="flex size-9 items-center justify-center rounded-lg bg-secondary"><Bot className="size-4" /></span><div><h2 className="text-sm font-semibold">Automation status</h2><p className="mt-0.5 text-xs text-muted-foreground">Your workspace is connected</p></div></div><dl className="mt-5 space-y-3 border-t border-border pt-4 text-sm"><div className="flex justify-between"><dt className="text-muted-foreground">Instagram</dt><dd className="flex items-center gap-1.5 font-medium"><span className="size-1.5 rounded-full bg-foreground" />Connected</dd></div><div className="flex justify-between"><dt className="text-muted-foreground">Running workflows</dt><dd className="font-medium">{metrics?.activeTriggers ?? 0}</dd></div></dl></section>
+          <section className="rounded-xl bg-primary p-5 text-primary-foreground"><h2 className="text-sm font-semibold">Build your next workflow</h2><p className="mt-2 text-xs leading-5 text-primary-foreground/75">Turn a comment, direct message, or story reply into an automatic response.</p><Link href="/dashboard/automations" className="mt-5 inline-flex items-center gap-1.5 text-xs font-semibold">Open workflow builder<ArrowRight className="size-3.5" /></Link></section>
+        </aside>
+      </div>
+    </div>
+  )
 }
 
-function StatCard({ title, value, trend, icon }: { title: string, value: string, trend: string, icon: React.ReactNode }) {
-    return (
-        <div className="p-6 rounded-2xl border border-border bg-card hover:border-foreground/20 transition-colors group">
-            <div className="flex items-start justify-between">
-                {icon}
-                <span className="font-mono-ui text-[10px] uppercase tracking-widest text-muted-foreground">{trend}</span>
-            </div>
-            <div className="mt-6">
-                <p className="font-serif-display text-5xl text-foreground leading-none">{value}</p>
-                <p className="font-mono-ui text-[10px] text-muted-foreground uppercase tracking-[0.2em] mt-3">{title}</p>
-            </div>
-        </div>
-    )
+function Metric({ label, value, icon: Icon }: { label: string; value: number; icon: React.ComponentType<{ className?: string }> }) {
+  return <div className="border-border py-6 sm:border-r sm:px-6 first:pl-0 last:border-r-0"><div className="flex items-center justify-between"><p className="text-xs font-medium text-muted-foreground">{label}</p><Icon className="size-4 text-muted-foreground" /></div><p className="mt-3 text-3xl font-semibold tracking-tight">{value.toLocaleString()}</p></div>
+}
+
+function EmptyState({ icon: Icon, title, description }: { icon: React.ComponentType<{ className?: string }>; title: string; description: string }) {
+  return <div className="flex min-h-64 flex-col items-center justify-center px-6 text-center"><span className="flex size-10 items-center justify-center rounded-lg bg-secondary"><Icon className="size-4 text-muted-foreground" /></span><h3 className="mt-4 text-sm font-medium">{title}</h3><p className="mt-1.5 text-xs text-muted-foreground">{description}</p></div>
 }

@@ -27,9 +27,9 @@ interface CreateRuleFormProps {
 }
 
 const STEPS = [
-  { key: "trigger", label: "Trigger Source", sub: "When does it fire?" },
-  { key: "response", label: "Reply Payload", sub: "What do they get?" },
-  { key: "settings", label: "Final Settings", sub: "Speed & restrictions" },
+  { key: "trigger", label: "When", sub: "Choose what starts it" },
+  { key: "response", label: "Reply", sub: "Write what people receive" },
+  { key: "settings", label: "Review", sub: "Name and publish" },
 ] as const
 
 export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: CreateRuleFormProps) {
@@ -166,6 +166,10 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
     thenValid,  // step 1
     name.trim().length > 0, // step 2
   ]
+  const sourceLabel = triggerSource === "comment" ? "comment" : triggerSource === "dm" ? "direct message" : "story"
+  const validationHint = step === 0
+    ? triggerSource === "comment" && !hasSelectedReelOption ? "Choose a post, reel, or All posts to continue." : needsKeywords && triggers.length === 0 ? "Add at least one keyword to continue." : ""
+    : step === 1 && !thenValid ? "Add the reply people should receive." : step === 2 && !name.trim() ? "Give this workflow a name before publishing." : ""
 
   /* Plain-language summary sentence */
   const summary = useMemo(() => {
@@ -257,9 +261,13 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
   }
 
   return (
-    <div className="space-y-8">
+    <div className="workflow-builder space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div><p className="text-xs text-muted-foreground">{isEditing ? "Editing workflow" : "New workflow"}</p><p className="mt-1 text-sm font-semibold capitalize">Started by an Instagram {sourceLabel}</p></div>
+        <span className="rounded-md bg-secondary px-2.5 py-1 text-xs font-medium">Step {step + 1} of {STEPS.length}</span>
+      </div>
       {/* ── Sexy Stepper Timeline ── */}
-      <div className="relative bg-card border border-border rounded-2xl p-4 md:px-8">
+      <div className="relative border-b border-border py-3">
         <div className="flex items-center justify-between gap-4 relative">
           {STEPS.map((s, i) => {
             const isActive = i === step
@@ -271,17 +279,17 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
                   onClick={() => { if (i < step || stepValid[step]) setStep(i) }}
                   className="flex items-center gap-3 group text-left focus:outline-none"
                 >
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all duration-300 ${
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-semibold transition-colors ${
                     isCompleted
-                      ? "bg-accent-yellow text-black shadow-[0_0_15px_rgba(255,225,77,0.3)]"
+                      ? "bg-primary text-primary-foreground"
                       : isActive
-                        ? "bg-white text-black ring-4 ring-white/10"
+                        ? "bg-primary text-primary-foreground"
                         : "bg-muted text-muted-foreground border border-border"
                   }`}>
                     {isCompleted ? <Check className="w-4 h-4 stroke-[3]" /> : i + 1}
                   </div>
                   <div className="hidden md:block">
-                    <p className={`text-xs font-bold tracking-tight uppercase ${isActive ? "text-foreground" : "text-muted-foreground group-hover:text-neutral-200"}`}>
+                    <p className={`text-xs font-semibold ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
                       {s.label}
                     </p>
                     <p className="text-[10px] text-muted-foreground font-mono-ui">{s.sub}</p>
@@ -289,7 +297,7 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
                 </button>
                 {i < STEPS.length - 1 && (
                   <div className="flex-1 h-[2px] mx-2 relative bg-muted rounded-full overflow-hidden">
-                    <div className={`absolute inset-y-0 left-0 transition-all duration-500 bg-accent-yellow ${
+                    <div className={`absolute inset-y-0 left-0 transition-all duration-300 bg-primary ${
                       isCompleted ? "w-full" : "w-0"
                     }`} />
                   </div>
@@ -301,16 +309,16 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
       </div>
 
       {/* ── Two Column Workspace ── */}
-      <div className="grid lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_340px] gap-6 xl:gap-8 items-start">
+      <div className={step === 1 && replyMode !== "public_only" ? "grid lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_340px] gap-6 xl:gap-8 items-start" : "grid grid-cols-1 gap-6 items-start"}>
         {/* ── LEFT: Config Form ── */}
-        <div className="bg-card border border-border rounded-2xl p-5 md:p-8 space-y-6 min-w-0">
+        <div className="bg-card border border-border rounded-lg p-4 space-y-4 min-w-0">
           {/* ===== STEP 1: TRIGGER ===== */}
           {step === 0 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
               <StepHeader
                 number={1}
-                title={triggerSource === "comment" ? "Select the target post/reel" : triggerSource === "dm" ? "When someone DMs you" : "When someone interacts with your story"}
-                description={triggerSource === "comment" ? "Choose the specific media to automate." : "Set the conditions that launch this automation."}
+                title={triggerSource === "comment" ? "Where should this workflow run?" : triggerSource === "dm" ? "Which messages should start it?" : "Which story action should start it?"}
+                description={triggerSource === "comment" ? "Choose one post, one reel, or apply it everywhere." : "Choose the simple condition that starts this workflow."}
               />
 
               {triggerSource === "story" && (
@@ -485,8 +493,8 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
             <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
               <StepHeader
                 number={2}
-                title="Compose response message"
-                description="Pick the format and craft the message sent to prospects."
+                title="What should people receive?"
+                description="Choose one reply format, then write the message exactly as it should be sent."
               />
 
               {triggerSource === "comment" && (
@@ -671,13 +679,13 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
             <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
               <StepHeader
                 number={3}
-                title="Configure rules & name"
-                description="Finalize performance parameters and activate the automation."
+                title="Review and publish"
+                description="Give the workflow a clear internal name and confirm optional delivery rules."
               />
 
               <div className="space-y-2">
-                <FieldLabel>Automation identifier name</FieldLabel>
-                <TextField value={name} onChange={setName} placeholder='e.g. "Free Ebook Download Trigger"' />
+                <FieldLabel>Workflow name</FieldLabel>
+                <TextField value={name} onChange={setName} placeholder='e.g. "Send the free guide"' />
               </div>
 
               <div className="space-y-4">
@@ -723,24 +731,25 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
           )}
 
           {/* ── Wizard Foot Navigation ── */}
-          <div className="flex items-center justify-between border-t border-border pt-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-6">
             {step > 0 ? (
               <button
                 type="button"
                 onClick={() => setStep(step - 1)}
-                className="flex items-center gap-2 h-11 px-5 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-border font-mono-ui text-xs font-bold transition-all"
+                className="flex items-center gap-2 h-10 px-4 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground text-xs font-medium transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Back
               </button>
             ) : <div />}
 
+            {validationHint && <p className="order-last w-full text-xs text-muted-foreground sm:order-none sm:w-auto">{validationHint}</p>}
             {step < 2 ? (
               <button
                 type="button"
                 onClick={() => { if (stepValid[step]) setStep(step + 1) }}
                 disabled={!stepValid[step]}
-                className="flex items-center gap-2 h-11 px-6 rounded-full bg-white text-black font-mono-ui text-xs font-bold hover:bg-accent-yellow hover:shadow-[0_0_20px_rgba(255,225,77,0.25)] active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed ml-auto"
+                className="flex items-center gap-2 h-10 px-4 rounded-lg bg-primary text-primary-foreground text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ml-auto"
               >
                 Continue
                 <ChevronRight className="w-4 h-4" />
@@ -750,17 +759,17 @@ export function CreateRuleForm({ userId, triggerSource, onSuccess, editRule }: C
                 type="button"
                 onClick={handleSubmit}
                 disabled={!canSave || saving}
-                className="flex items-center justify-center gap-2 h-11 px-8 rounded-full bg-accent-yellow text-black font-mono-ui text-sm font-bold hover:brightness-95 hover:shadow-[0_0_25px_rgba(255,225,77,0.35)] active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed ml-auto"
+                className="flex items-center justify-center gap-2 h-10 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ml-auto"
               >
                 {saving ? <Loader2 className="w-4.5 h-4.5 animate-spin" /> : <Zap className="w-4 h-4 stroke-[2.5]" />}
-                {saving ? "Saving Changes..." : isEditing ? "Save Automation" : "Go Live"}
+                {saving ? "Saving..." : isEditing ? "Save workflow" : "Publish workflow"}
               </button>
             )}
           </div>
         </div>
 
         {/* ── RIGHT: iPhone Mockup — ALWAYS dark regardless of page theme ── */}
-        {replyMode !== "public_only" && (
+        {step === 1 && replyMode !== "public_only" && (
           <div className="hidden lg:block sticky top-6 dark">
             <div className="text-center mb-3">
               <span className="font-mono-ui text-[10px] uppercase tracking-[0.25em] text-neutral-400 font-bold">Interactive Preview</span>
@@ -936,18 +945,18 @@ function StepHeader({ number, title, description }: { number: number; title: str
   return (
     <div className="border-b border-border pb-4">
       <div className="flex items-center gap-2 mb-1.5">
-        <div className="px-2 py-0.5 rounded-md bg-accent-yellow/10 border border-accent-yellow/25 text-[9px] font-mono-ui font-bold uppercase tracking-wider text-accent-yellow-foreground">
-          Phase {number}
+        <div className="px-2 py-0.5 rounded-md bg-secondary text-[10px] font-medium text-muted-foreground">
+          Step {number}
         </div>
       </div>
-      <h3 className="text-xl font-bold text-foreground tracking-tight">{title}</h3>
-      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{description}</p>
+      <h3 className="text-xl font-semibold text-foreground tracking-tight">{title}</h3>
+      <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{description}</p>
     </div>
   )
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <p className="font-mono-ui text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground mb-2">{children}</p>
+  return <p className="text-xs font-medium text-foreground mb-2">{children}</p>
 }
 
 function TextField({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
@@ -956,7 +965,7 @@ function TextField({ value, onChange, placeholder }: { value: string; onChange: 
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full h-11 bg-muted/30 border border-border rounded-xl px-4 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-accent-yellow/50 focus:bg-muted/50 transition-all"
+      className="w-full h-11 bg-card border border-border rounded-lg px-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
     />
   )
 }
@@ -974,17 +983,17 @@ function ToggleRow({
     <button
       type="button"
       onClick={onToggle}
-      className={`w-full p-4 rounded-2xl border text-left flex items-center gap-3.5 transition-all duration-200 bg-white/[0.01] ${
-        on ? "border-accent-yellow/40 bg-accent-yellow/[0.03]" : "border-border hover:border-border"
+      className={`w-full p-4 rounded-xl border text-left flex items-center gap-3.5 transition-colors bg-card ${
+        on ? "border-foreground bg-accent" : "border-border hover:border-foreground"
       }`}
     >
-      <span className={on ? "text-accent-yellow-foreground" : "text-muted-foreground"}>{icon}</span>
+      <span className={on ? "text-foreground" : "text-muted-foreground"}>{icon}</span>
       <span className="flex-1 min-w-0">
         <span className="block text-sm font-semibold text-foreground">{title}</span>
         <span className="block text-xs text-muted-foreground mt-0.5 leading-relaxed">{sub}</span>
       </span>
-      <span className={`w-10 h-5.5 rounded-full relative transition-colors shrink-0 ${on ? "bg-accent-yellow" : "bg-muted"}`}>
-        <span className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-black shadow-md transition-all ${on ? "left-[20px]" : "left-0.5"}`} />
+      <span className={`w-10 h-5.5 rounded-full relative transition-colors shrink-0 ${on ? "bg-primary" : "bg-muted"}`}>
+        <span className={`absolute top-0.5 w-4.5 h-4.5 rounded-full bg-card transition-all ${on ? "left-[20px]" : "left-0.5"}`} />
       </span>
     </button>
   )
