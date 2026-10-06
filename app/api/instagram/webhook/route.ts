@@ -401,14 +401,14 @@ export async function POST(request: NextRequest) {
                             r = await sendTextDM(
                               user.access_token,
                               { comment_id: commentId },
-                              `Hey! 👋 You don't follow @${user.username} yet. Please follow first and reply here with "I followed" — I'll send it right over! ✨`,
+                              `Almost there! ✨ Just make sure to follow first and reply here with "I followed" — I'll send it right over!`,
                             )
                             if (!r?.ok && r?.error?.error_subcode === 2534025) {
                               // comment_id invalid for private reply (nested / already replied) -> try DM via {id}
                               r = await sendTextDM(
                                 user.access_token,
                                 { id: senderId },
-                                `Hey! 👋 You don't follow @${user.username} yet. Please follow first and reply with "I followed" — I'll send it right over! ✨`,
+                                `Almost there! ✨ Just make sure to follow first and reply with "I followed" — I'll send it right over!`,
                               )
                             }
                             if (r?.ok) {
@@ -529,7 +529,7 @@ export async function POST(request: NextRequest) {
                                                 await sendTextDM(
                                                   user.access_token,
                                                   { id: senderId },
-                                                  `Hey! 👋 You don't follow @${user.username} yet. Please follow first and reply with "I followed" — I'll send it right over! ✨`,
+                                                  `Almost there! ✨ Just make sure to follow first and reply with "I followed" — I'll send it right over!`,
                                                 )
                                               } else {
                                                 // Transient failure — fail OPEN: deliver content
@@ -766,14 +766,14 @@ export async function POST(request: NextRequest) {
                               username: user.username,
                               ruleId: match.id,
                               title: "❌ Not Following Yet!",
-                              subtitle: `We couldn't verify your follow. Please follow @${user.username} and tap below or reply "I followed" once done.`,
+                              subtitle: `We couldn't verify your follow. Please make sure to follow and tap below or reply "I followed" once done.`,
                             }),
                           )
                           if (!result?.ok) {
                             result = await sendTextDM(
                               user.access_token,
                               { id: senderId },
-                              `❌ Not Following Yet!\n\nWe couldn't verify your follow. You don't follow @${user.username} yet. Please follow first and reply with "I followed" once done — I'll send it right over! ✨`,
+                              `Almost there! ✨ We couldn't verify your follow yet. Just make sure to follow first and reply with "I followed" — I'll send it right over!`,
                             )
                           }
                           if (result?.ok && conv) {
@@ -849,14 +849,14 @@ export async function POST(request: NextRequest) {
                                 buildFollowGateCard({
                                   username: user.username,
                                   ruleId: match.id,
-                                  subtitle: `Please follow @${user.username} to see this!`,
+                                  subtitle: `Please make sure to follow to see this!`,
                                 }),
                               )
                               if (!result?.ok) {
                                 result = await sendTextDM(
                                   user.access_token,
                                   { id: senderId },
-                                  `Almost there! ✨ Please follow @${user.username} first and reply with "I followed" to unlock!`,
+                                  `Almost there! ✨ Just make sure to follow first and reply with "I followed" to unlock!`,
                                 )
                               }
                               if (result?.ok && conv) {
@@ -907,13 +907,13 @@ export async function POST(request: NextRequest) {
                           let result = await sendCardDM(
                             user.access_token,
                             { id: senderId },
-                            buildFollowGateCard({ username: user.username, ruleId: match.id, subtitle: `Please follow @${user.username} to see this!` }),
+                            buildFollowGateCard({ username: user.username, ruleId: match.id, subtitle: `Please make sure to follow to see this!` }),
                           )
                           if (!result?.ok) {
                             result = await sendTextDM(
                               user.access_token,
                               { id: senderId },
-                              `Hey! 👋 You don't follow @${user.username} yet. Please follow first and reply with "I followed" — I'll send it right over! ✨`,
+                              `Almost there! ✨ Just make sure to follow first and reply with "I followed" — I'll send it right over!`,
                             )
                           }
                           if (result?.ok && conv) {

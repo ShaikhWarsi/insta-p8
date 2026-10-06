@@ -78,7 +78,7 @@ export function buildFollowGateCard(params: {
 }): IGCard {
   return {
     title: params.title ?? "Almost there! ✨",
-    subtitle: params.subtitle ?? `Just follow @${params.username} and tap I Followed — I'll send it instantly!`,
+    subtitle: params.subtitle ?? `Just make sure to follow and tap I Followed — I'll send it right over!`,
     buttons: [
       { type: "web_url", url: `https://instagram.com/${params.username}`, title: "Follow" },
       { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${params.ruleId}` },
