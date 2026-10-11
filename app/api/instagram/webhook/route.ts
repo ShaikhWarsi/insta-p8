@@ -940,7 +940,6 @@ export async function POST(request: NextRequest) {
                             }
                           }
                         }
-                        }
                       }
                     } else {
                       // No follower check required
