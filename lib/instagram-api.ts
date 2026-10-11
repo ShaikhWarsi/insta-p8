@@ -72,16 +72,15 @@ export function buildCardAttachment(card: IGCard) {
  * literal types that `IGButton` requires.
  */
 export function buildFollowGateCard(params: {
-  username: string
+  username?: string
   ruleId: string
   title?: string
   subtitle?: string
 }): IGCard {
   return {
     title: params.title ?? "Almost there! ✨",
-    subtitle: params.subtitle ?? `Just make sure to follow and tap I Followed — I'll send it right over!`,
+    subtitle: params.subtitle ?? `Just make sure to follow first and reply with "I followed" — I'll send it right over!`,
     buttons: [
-      { type: "web_url", url: `https://instagram.com/${params.username}`, title: "Follow" },
       { type: "postback", title: "I Followed! ✅", payload: `UNLOCK_CONTENT_${params.ruleId}` },
     ],
   }

@@ -13,7 +13,6 @@ import {
   fetchProfile,
   verifyIdOwnership,
   sleep,
-  buildFollowGateCard,
 } from "@/lib/instagram-api"
 import { generateAIReply } from "@/lib/ai-reply"
 import {
@@ -393,38 +392,33 @@ export async function POST(request: NextRequest) {
                           await replyToComment(user.access_token, commentId, getPublicReply())
                         }
                         if (replyMode !== "public_only") {
-                          const gateCard = buildFollowGateCard({ username: user.username, ruleId: match.id })
-                          let r: any = await sendCardDM(user.access_token, { comment_id: commentId }, gateCard)
+                          const gateText = `Almost there! Just make sure to follow first and reply with "I followed" and I will send it over`
+                          let r: any = await sendTextDM(
+                            user.access_token,
+                            { comment_id: commentId },
+                            gateText,
+                          )
                           if (!r?.ok) {
-                            console.warn(`[webhook] Gate card via comment_id failed (${r?.error?.error_subcode || r?.error?.message || "unknown"}), falling back to text`)
-                            // Fall back to plain text via comment_id (allowed for EU/minors and non-followers)
+                            // If private reply via comment_id failed (e.g. 2534025), fall back to DM via {id}
                             r = await sendTextDM(
                               user.access_token,
-                              { comment_id: commentId },
-                              `Almost there! ✨ Just make sure to follow first and reply here with "I followed" — I'll send it right over!`,
+                              { id: senderId },
+                              gateText,
                             )
-                            if (!r?.ok && r?.error?.error_subcode === 2534025) {
-                              // comment_id invalid for private reply (nested / already replied) -> try DM via {id}
-                              r = await sendTextDM(
+                          }
+                          if (r?.ok) {
+                            console.log(`[webhook] ✅ Gate text sent for @${senderId}`)
+                          } else {
+                            console.error(`[webhook] Gate text failed for @${senderId}`, r?.error)
+                            // If private reply AND DM both failed, reply publicly on comment
+                            try {
+                              await replyToComment(
                                 user.access_token,
-                                { id: senderId },
-                                `Almost there! ✨ Just make sure to follow first and reply with "I followed" — I'll send it right over!`,
+                                commentId,
+                                `Hey! 👋 Please send us a direct message with "follow" to get your link — Instagram won't let us message you first! ✨`,
                               )
-                            }
-                            if (r?.ok) {
-                              console.log(`[webhook] ✅ Gate fallback text sent for @${senderId}`)
-                            } else {
-                              console.error(`[webhook] Gate fallback failed for @${senderId}`, r?.error)
-                              // If private reply AND DM both failed (e.g. 2534025 + 2534022), reply publicly on comment
-                              try {
-                                await replyToComment(
-                                  user.access_token,
-                                  commentId,
-                                  `Hey! 👋 Please send us a direct message with "follow" to get your link — Instagram won't let us message you first! ✨`,
-                                )
-                              } catch (replyErr) {
-                                console.error(`[webhook] Failed to send fallback public comment reply`, replyErr)
-                              }
+                            } catch (replyErr) {
+                              console.error(`[webhook] Failed to send fallback public comment reply`, replyErr)
                             }
                           }
                         }
@@ -522,19 +516,17 @@ export async function POST(request: NextRequest) {
                                               console.log(`[webhook] ✅ Story follower gate: @${senderId} follows @${user.username} — sending content`)
                                               await sendAutomationResponse(user.access_token, { id: senderId }, content)
                                             } else if (followResult.follows === false || followResult.error === 'auth') {
-                                              console.log(`[webhook] 🔒 Story follower gate: @${senderId} doesn't follow or auth unverifiable for @${user.username}`)
+                                              console.log(`[webhook] 🔒 Story follower gate: @${senderId} doesn't follow or auth unverifiable`)
                                               await setPendingGate(senderId, match.id)
-                                              let r = await sendCardDM(user.access_token, { id: senderId }, buildFollowGateCard({ username: user.username, ruleId: match.id }))
-                                              if (!r?.ok) {
-                                                await sendTextDM(
-                                                  user.access_token,
-                                                  { id: senderId },
-                                                  `Almost there! ✨ Just make sure to follow first and reply with "I followed" — I'll send it right over!`,
-                                                )
+                                              const r = await sendTextDM(
+                                                user.access_token,
+                                                { id: senderId },
+                                                `Almost there! Just make sure to follow first and reply with "I followed" and I will send it over`,
+                                              )
+                                              if (r?.ok) {
+                                                console.log(`[webhook] ✅ Story gate text sent for @${senderId}`)
                                               } else {
-                                                // Transient failure — fail OPEN: deliver content
-                                                console.warn(`[webhook] ⚠️ Story follower gate transient failure for @${senderId}; failing open`)
-                                                await sendAutomationResponse(user.access_token, { id: senderId }, content)
+                                                console.error(`[webhook] Story gate text failed for @${senderId}`, r?.error)
                                               }
                                             } else {
                                               // No follower check required — send normally
@@ -637,11 +629,11 @@ export async function POST(request: NextRequest) {
           const pendingRuleId = (triggerType === "keyword" && !isUnlockEvent) ? await getPendingGate(senderId) : null
 
           // Matches common variations: "i followed", "i followed you", "done", "following", "i have followed", "already followed", etc.
-          const unlockRegex = /^\s*(i('?ve| have)?\s*follow(ed)?(\s*you)?|followed(\s*you)?|done|following|tap\s*done|already\s*followed|just\s*followed)\s*[\.!\?✅]*\s*$/i
+          const unlockRegex = /^\s*(i('?ve| have)?\s*follow(ed)?(\s*you)?|follow(ed)?(\s*you)?|done|following|tap\s*done|already\s*followed|just\s*followed)\s*[\.!\?✅]*\s*$/i
           const isTextUnlock =
             !isUnlockEvent &&
             triggerType === "keyword" &&
-            (unlockRegex.test(triggerValue) || (Boolean(pendingRuleId) && /\b(follow(ed|ing)?|done|unlock)\b/i.test(triggerValue)))
+            (unlockRegex.test(triggerValue) || Boolean(pendingRuleId))
 
           if (isTextUnlock) {
             if (pendingRuleId) {
@@ -776,24 +768,13 @@ export async function POST(request: NextRequest) {
                           }
                         } else if (followResult.follows === false) {
                           await clearUnlockAttempts(attemptKey)
+                          await setPendingGate(senderId, match.id)
                           console.log(`[webhook] ❌ DM unlock rejected: @${senderId} still doesn't follow`)
-                          let result = await sendCardDM(
+                          const result = await sendTextDM(
                             user.access_token,
                             { id: senderId },
-                            buildFollowGateCard({
-                              username: user.username,
-                              ruleId: match.id,
-                              title: "❌ Not Following Yet!",
-                              subtitle: `We couldn't verify your follow. Please make sure to follow and tap below or reply "I followed" once done.`,
-                            }),
+                            `We couldn't verify your follow yet. Please make sure to follow first and reply with "I followed" and I will send it over`,
                           )
-                          if (!result?.ok) {
-                            result = await sendTextDM(
-                              user.access_token,
-                              { id: senderId },
-                              `Almost there! ✨ We couldn't verify your follow yet. Just make sure to follow first and reply with "I followed" — I'll send it right over!`,
-                            )
-                          }
                           const conv = await incomingSaved
                           if (result?.ok && conv) {
                             try {
@@ -803,7 +784,7 @@ export async function POST(request: NextRequest) {
                                 user_id: user.id,
                                 sender_id: user.business_account_id,
                                 sender_username: user.username,
-                                content: "[Verification Failed]",
+                                content: `We couldn't verify your follow yet. Please make sure to follow first and reply with "I followed" and I will send it over`,
                                 is_from_instagram: false,
                               })
                             } catch (e) {
@@ -864,22 +845,12 @@ export async function POST(request: NextRequest) {
                               }
                             } else {
                               console.warn(`[webhook] ⚠️ DM unlock unverifiable transient (attempt ${attempts}/${UNLOCK_GATE_MAX_ATTEMPTS}) for @${senderId}`)
-                              let result = await sendCardDM(
+                              await setPendingGate(senderId, match.id)
+                              const result = await sendTextDM(
                                 user.access_token,
                                 { id: senderId },
-                                buildFollowGateCard({
-                                  username: user.username,
-                                  ruleId: match.id,
-                                  subtitle: `Please make sure to follow to see this!`,
-                                }),
+                                `Almost there! Just make sure to follow first and reply with "I followed" and I will send it over`,
                               )
-                              if (!result?.ok) {
-                                result = await sendTextDM(
-                                  user.access_token,
-                                  { id: senderId },
-                                  `Almost there! ✨ Just make sure to follow first and reply with "I followed" to unlock!`,
-                                )
-                              }
                               const conv = await incomingSaved
                               if (result?.ok && conv) {
                                 try {
@@ -889,7 +860,7 @@ export async function POST(request: NextRequest) {
                                     user_id: user.id,
                                     sender_id: user.business_account_id,
                                     sender_username: user.username,
-                                    content: `[Locked Content Gate — attempt ${attempts}/${UNLOCK_GATE_MAX_ATTEMPTS}]`,
+                                    content: `Almost there! Just make sure to follow first and reply with "I followed" and I will send it over`,
                                     is_from_instagram: false,
                                   })
                                 } catch (e) {
@@ -926,19 +897,12 @@ export async function POST(request: NextRequest) {
                         } else if (followResult.follows === false || followResult.error === 'auth') {
                           await clearUnlockAttempts(attemptKey)
                           await setPendingGate(senderId, match.id)
-                          console.log(`[webhook] 🔒 DM follower gate: @${senderId} doesn't follow or auth unverifiable @${user.username}`)
-                          let result = await sendCardDM(
+                          console.log(`[webhook] 🔒 DM follower gate: @${senderId} doesn't follow or auth unverifiable`)
+                          const result = await sendTextDM(
                             user.access_token,
                             { id: senderId },
-                            buildFollowGateCard({ username: user.username, ruleId: match.id, subtitle: `Please make sure to follow to see this!` }),
+                            `Almost there! Just make sure to follow first and reply with "I followed" and I will send it over`,
                           )
-                          if (!result?.ok) {
-                            result = await sendTextDM(
-                              user.access_token,
-                              { id: senderId },
-                              `Almost there! ✨ Just make sure to follow first and reply with "I followed" — I'll send it right over!`,
-                            )
-                          }
                           const conv = await incomingSaved
                           if (result?.ok && conv) {
                             try {
@@ -948,7 +912,7 @@ export async function POST(request: NextRequest) {
                                 user_id: user.id,
                                 sender_id: user.business_account_id,
                                 sender_username: user.username,
-                                content: "[Locked Content Gate]",
+                                content: `Almost there! Just make sure to follow first and reply with "I followed" and I will send it over`,
                                 is_from_instagram: false,
                               })
                             } catch (e) {
